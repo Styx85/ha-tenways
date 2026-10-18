@@ -87,6 +87,7 @@ async def test_info_once_then_status(hass, advertising):
     assert first.average_speed == 12.6
     assert first.ride_seconds == 34116
     assert first.speed == 0.0
+    assert first.light is False
     assert first.raw_0b == 655
     assert first.firmware == "2.20.16"
     assert first.serial == "YJ250319A002340"
@@ -141,30 +142,42 @@ async def test_connection_failure_keeps_diagnostics(hass, advertising):
     assert coordinator.data.rssi == -60
 
 
-async def test_bike_switched_off_keeps_totals_only(hass, advertising):
+async def test_bike_switched_off_keeps_last_values(hass, advertising):
     coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
     with patch("custom_components.tenways.coordinator.establish_connection", return_value=FakeBike()):
         await coordinator.async_refresh()
-    assert coordinator.data.traction_battery == 68
+    read_at = coordinator.data.last_successful_read
+    seen_at = coordinator.data.last_advertisement
     with patch("custom_components.tenways.coordinator.bluetooth.async_last_service_info", return_value=None), \
          patch("custom_components.tenways.coordinator.bluetooth.async_ble_device_from_address", return_value=None):
         await coordinator.async_refresh()
     data = coordinator.data
     assert (data.odometer, data.trip_distance, data.ride_seconds) == (120.1, 120.1, 34116)
     assert (data.max_speed, data.average_speed) == (44.7, 12.6)
-    assert data.traction_battery is None
-    assert data.speed is None
-    assert data.raw_0b is None
+    assert data.traction_battery == 68
+    assert data.raw_0b == 655
     assert data.serial == "YJ250319A002340"
+    assert (data.last_successful_read, data.last_advertisement) == (read_at, seen_at)
+    assert data.speed is None and data.light is None and data.rssi is None
+    assert not data.bluetooth_visible
 
 
-async def test_failed_read_keeps_totals_only(hass, advertising):
+async def test_failed_read_keeps_last_values(hass, advertising):
     coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
     with patch("custom_components.tenways.coordinator.establish_connection", side_effect=[FakeBike(), TimeoutError]):
         await coordinator.async_refresh()
+        read_at = coordinator.data.last_successful_read
         await coordinator.async_refresh()
     assert coordinator.data.odometer == 120.1
-    assert coordinator.data.traction_battery is None
+    assert coordinator.data.traction_battery == 68
+    assert coordinator.data.last_successful_read == read_at
+    assert coordinator.data.speed is None
+
+
+async def test_unanswered_status_keeps_last_values(hass, advertising):
+    first, second = await _refresh(hass, FakeBike(), FakeBike(replies={}))
+    assert second.traction_battery == 68
+    assert second.speed is None and second.light is None
 
 
 async def test_reappearing_bike_triggers_refresh(hass):

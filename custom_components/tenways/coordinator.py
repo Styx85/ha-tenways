@@ -20,7 +20,8 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-TOTAL_FIELDS = ('odometer', 'trip_distance', 'ride_seconds', 'max_speed', 'average_speed')
+# Only describe the bike right now; every other field keeps its last read value.
+LIVE_FIELDS = ('speed', 'light', 'rssi')
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,7 @@ class TenwaysData:
     odometer: float | None = None
     ride_seconds: int | None = None
     trip_distance: float | None = None
+    light: bool | None = None
     raw_0b: int | None = None
     raw_11: int | None = None
     raw_23: int | None = None
@@ -59,10 +61,10 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         )
         self.address = address
         self._last_successful_read: datetime | None = None
-        self._cached_info: dict[str, str] = {}
+        self._last_advertisement: datetime | None = None
         self._king_meter_info_read = False
-        # Totals stay valid while the bike is off; live values do not.
-        self._totals: dict[str, float | int] = {}
+        # Last read values, kept while the bike is off or a read fails.
+        self._last: dict[str, float | int | str] = {}
         self._absent = True
 
     async def _async_update_data(self) -> TenwaysData:
@@ -72,19 +74,16 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         age = max(0.0, now - info.time) if info is not None else None
         visible = age is not None and age < ADVERTISEMENT_MAX_AGE_SECONDS
         rssi = info.rssi if visible and info is not None else None
-        seen_at = (
-            datetime.now(timezone.utc) - timedelta(seconds=age)
-            if age is not None else None
-        )
+        if age is not None:
+            self._last_advertisement = datetime.now(timezone.utc) - timedelta(seconds=age)
         fallback = TenwaysData(
-            battery_level=None, rssi=rssi, bluetooth_visible=visible,
-            last_advertisement=seen_at,
+            rssi=rssi, bluetooth_visible=visible,
+            last_advertisement=self._last_advertisement,
             last_successful_read=self._last_successful_read,
-            **self._cached_info, **self._totals,
+            **self._last,
         )
         device = bluetooth.async_ble_device_from_address(self.hass, self.address, connectable=True)
         if device is None or not visible:
-            # Do not retain a stale battery value when the bicycle disappears.
             self._absent = True
             return fallback
         self._absent = False
@@ -94,20 +93,19 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
             client = await establish_connection(
                 BleakClient, device, self.address, max_attempts=2, timeout=20.0,
             )
-            raw = b''
             if client.services.get_characteristic(BATTERY_UUID):
                 try:
                     raw = bytes(await asyncio.wait_for(client.read_gatt_char(BATTERY_UUID), 8))
-                    if len(raw) != 1 or raw[0] > 100:
-                        raw = b''
+                    if len(raw) == 1 and raw[0] <= 100:
+                        self._last['battery_level'] = raw[0]
                 except Exception as exc:
                     _LOGGER.debug('Standard battery read unavailable: %s', exc)
             telemetry = await self._async_read_king_meter(TenwaysBike(client))
-            if telemetry:
-                self._totals = {key: telemetry[key] for key in TOTAL_FIELDS}
+            live = {key: telemetry.pop(key, None) for key in LIVE_FIELDS if key != 'rssi'}
+            self._last.update(telemetry)
             # Optional reads only when advertised as present in the GATT table.
             for key, uuid in DEVICE_INFO_UUIDS.items():
-                if key in self._cached_info:
+                if key in self._last:
                     continue
                 if client.services.get_characteristic(uuid) is None:
                     continue
@@ -115,17 +113,17 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                     value = bytes(await asyncio.wait_for(client.read_gatt_char(uuid), 3))
                     decoded = value.decode("utf-8", errors="replace").strip("\x00 ")
                     if decoded:
-                        self._cached_info[key] = decoded[:100]
+                        self._last[key] = decoded[:100]
                 except (Exception, asyncio.CancelledError) as exc:
                     if isinstance(exc, asyncio.CancelledError):
                         raise
                     _LOGGER.debug("Optional TENWAYS %s characteristic not readable: %s", key, exc)
             self._last_successful_read = datetime.now(timezone.utc)
             return TenwaysData(
-                battery_level=raw[0] if raw else None, rssi=rssi, bluetooth_visible=True,
-                last_advertisement=seen_at,
+                rssi=rssi, bluetooth_visible=True, **live,
+                last_advertisement=self._last_advertisement,
                 last_successful_read=self._last_successful_read,
-                **self._cached_info, **(telemetry or self._totals),
+                **self._last,
             )
         except asyncio.CancelledError:
             raise
@@ -162,9 +160,9 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                 self._king_meter_info_read = True
                 # The King Meter firmware takes precedence over Device Information.
                 if device_info.firmware:
-                    self._cached_info['firmware'] = device_info.firmware
+                    self._last['firmware'] = device_info.firmware
                 if device_info.serial:
-                    self._cached_info['serial'] = device_info.serial
+                    self._last['serial'] = device_info.serial
         try:
             status = await bike.read_status()
         except (TenwaysError, TenwaysProtocolError, TimeoutError) as exc:
@@ -178,6 +176,8 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
             'odometer': status.odometer_km,
             'ride_seconds': status.ride_time_s,
             'trip_distance': status.trip_km,
+            # Field 0x11 follows the light switch (observed in HA, 0 = off).
+            'light': None if status.raw_11 is None else status.raw_11 != 0,
             'raw_0b': status.raw_0b,
             'raw_11': status.raw_11,
             'raw_23': status.raw_23,
