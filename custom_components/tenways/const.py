@@ -1,0 +1,6 @@
+"""Constants for TENWAYS BLE."""
+DOMAIN = "tenways"
+CONF_ADDRESS = "address"
+NAME_PREFIX = "Tenways-ble-"
+BATTERY_UUID = "00002a19-0000-1000-8000-00805f9b34fb"
+POLL_SECONDS = 300

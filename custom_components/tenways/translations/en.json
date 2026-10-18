@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add TENWAYS bicycle",
+        "description": "Select a discovered TENWAYS bike, or enter its Bluetooth address if none is currently visible.",
+        "data": {"address": "Bluetooth address"}
+      }
+    },
+    "error": {"invalid_address": "Enter a valid Bluetooth MAC address."},
+    "abort": {"already_configured": "This bicycle is already configured.", "not_supported": "Unsupported Bluetooth device."}
+  }
+}

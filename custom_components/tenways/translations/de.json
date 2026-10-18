@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "TENWAYS-Fahrrad hinzufügen",
+        "description": "Entdecktes TENWAYS-Fahrrad auswählen oder die Bluetooth-Adresse eingeben.",
+        "data": {"address": "Bluetooth-Adresse"}
+      }
+    },
+    "error": {"invalid_address": "Bitte eine gültige Bluetooth-MAC-Adresse eingeben."},
+    "abort": {"already_configured": "Dieses Fahrrad ist bereits eingerichtet.", "not_supported": "Bluetooth-Gerät nicht unterstützt."}
+  }
+}
