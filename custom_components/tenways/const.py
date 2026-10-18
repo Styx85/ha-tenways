@@ -14,3 +14,8 @@ POLL_SECONDS = 300
 MIN_POLL_SECONDS = 30
 MAX_POLL_SECONDS = 3600
 ADVERTISEMENT_MAX_AGE_SECONDS = 120
+# Status field 0x0B, unverified: it follows the assist level on the parked bike
+# (68 % battery). It may instead be a range estimate per assist level in km;
+# then the values fall as the battery drains and the lookup stops matching.
+RAW_0B_ASSIST_OFF = 655
+ASSIST_LEVELS = {RAW_0B_ASSIST_OFF: 0, 60: 1, 54: 2, 50: 3, 45: 4, 43: 5}
