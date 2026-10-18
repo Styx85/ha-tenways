@@ -24,3 +24,11 @@ No unlock, light, power, firmware, configuration or pairing commands are impleme
 - The proprietary poll is intentionally restricted to the observed Longtail Duo BLE address; wider model discovery can follow further tests. Poll interval: five minutes.
 - Bluetooth proxies must support active GATT connections.
 - For bugs, enable debug logs for `custom_components.tenways` and submit a redacted excerpt. **Never publish a raw phone HCI log**; it may contain other devices' traffic and identifiers.
+
+## Acknowledgements / Credits
+
+Based on and inspired by [stein155/cgo600-bridge](https://github.com/stein155/cgo600-bridge), which provided valuable groundwork for understanding the proprietary TENWAYS telemetry protocol and its integration with Home Assistant.
+
+Many thanks to the original author and contributors.
+
+The Longtail Duo implementation was developed using independently captured Bluetooth HCI traffic from the official TENWAYS app. It uses the King Meter BLE transport rather than the Nordic UART Service used by the CGO600 bridge.
