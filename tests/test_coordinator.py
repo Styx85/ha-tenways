@@ -7,7 +7,7 @@ from unittest.mock import patch
 from bleak import BleakClient
 import pytest
 from tenways_ble.const import TENWAYS_NOTIFY_UUID, TENWAYS_WRITE_UUID
-from tenways_ble.protocol import INFO_REQUEST, STATUS_REQUEST
+from tenways_ble.protocol import CMD_STATUS, INFO_REQUEST, STATUS_REQUEST, TYPE_READ, build_frame
 
 from custom_components.tenways.coordinator import TenwaysCoordinator
 
@@ -88,6 +88,8 @@ async def test_info_once_then_status(hass, advertising):
     assert first.ride_seconds == 34116
     assert first.speed == 0.0
     assert first.light is False
+    assert first.assist_level == 0
+    assert first.remaining_range is None
     assert first.raw_0b == 655
     assert first.firmware == "2.20.16"
     assert first.serial == "YJ250319A002340"
@@ -95,6 +97,21 @@ async def test_info_once_then_status(hass, advertising):
     assert first_bike.writes == [INFO_REQUEST, STATUS_REQUEST]
     assert second_bike.writes == [STATUS_REQUEST]
     assert not first_bike.connected and not second_bike.connected
+
+
+def _status_with_0b(value: int) -> bytes:
+    payload = STATUS_REPLY[4:-3].replace(bytes.fromhex("0b 02 02 8f"), bytes([0x0B, 2]) + value.to_bytes(2, "big"))
+    return build_frame(TYPE_READ, CMD_STATUS, payload)
+
+
+def test_status_reply_rebuilds():
+    assert _status_with_0b(655) == STATUS_REPLY
+
+
+@pytest.mark.parametrize(("raw", "level", "range_km"), [(60, 1, 60), (43, 5, 43), (52, None, 52)])
+async def test_field_0b_as_assist_level_and_range(hass, advertising, raw, level, range_km):
+    (data,) = await _refresh(hass, FakeBike(replies={STATUS_REQUEST: _status_with_0b(raw), INFO_REQUEST: INFO_REPLY}))
+    assert (data.assist_level, data.remaining_range, data.raw_0b) == (level, range_km, raw)
 
 
 async def test_missing_info_reply_does_not_block_status(hass, advertising):
@@ -159,6 +176,7 @@ async def test_bike_switched_off_keeps_last_values(hass, advertising):
     assert data.serial == "YJ250319A002340"
     assert (data.last_successful_read, data.last_advertisement) == (read_at, seen_at)
     assert data.speed is None and data.light is None and data.rssi is None
+    assert data.assist_level is None
     assert not data.bluetooth_visible
 
 
