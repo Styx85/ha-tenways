@@ -10,7 +10,7 @@ import time
 from bleak import BleakClient
 from bleak_retry_connector import establish_connection
 from homeassistant.components import bluetooth
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from tenways_ble import TenwaysBike, TenwaysError, TenwaysProtocolError
 
@@ -19,6 +19,8 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+TOTAL_FIELDS = ('odometer', 'trip_distance', 'ride_seconds', 'max_speed', 'average_speed')
 
 
 @dataclass(frozen=True)
@@ -59,6 +61,9 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         self._last_successful_read: datetime | None = None
         self._cached_info: dict[str, str] = {}
         self._king_meter_info_read = False
+        # Totals stay valid while the bike is off; live values do not.
+        self._totals: dict[str, float | int] = {}
+        self._absent = True
 
     async def _async_update_data(self) -> TenwaysData:
         info = bluetooth.async_last_service_info(self.hass, self.address, connectable=True)
@@ -75,12 +80,14 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
             battery_level=None, rssi=rssi, bluetooth_visible=visible,
             last_advertisement=seen_at,
             last_successful_read=self._last_successful_read,
-            **self._cached_info,
+            **self._cached_info, **self._totals,
         )
         device = bluetooth.async_ble_device_from_address(self.hass, self.address, connectable=True)
         if device is None or not visible:
             # Do not retain a stale battery value when the bicycle disappears.
+            self._absent = True
             return fallback
+        self._absent = False
 
         client: BleakClient | None = None
         try:
@@ -96,6 +103,8 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                 except Exception as exc:
                     _LOGGER.debug('Standard battery read unavailable: %s', exc)
             telemetry = await self._async_read_king_meter(TenwaysBike(client))
+            if telemetry:
+                self._totals = {key: telemetry[key] for key in TOTAL_FIELDS}
             # Optional reads only when advertised as present in the GATT table.
             for key, uuid in DEVICE_INFO_UUIDS.items():
                 if key in self._cached_info:
@@ -116,7 +125,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                 battery_level=raw[0] if raw else None, rssi=rssi, bluetooth_visible=True,
                 last_advertisement=seen_at,
                 last_successful_read=self._last_successful_read,
-                **self._cached_info, **telemetry,
+                **self._cached_info, **(telemetry or self._totals),
             )
         except asyncio.CancelledError:
             raise
@@ -130,6 +139,15 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                     await asyncio.wait_for(client.disconnect(), 5)
                 except Exception as exc:
                     _LOGGER.debug("TENWAYS disconnect failed: %s", exc)
+
+    @callback
+    def async_handle_advertisement(
+        self, _info: bluetooth.BluetoothServiceInfoBleak, _change: bluetooth.BluetoothChange
+    ) -> None:
+        """Poll right away when the bike reappears instead of waiting an interval."""
+        if self._absent:
+            self._absent = False
+            self.hass.async_create_task(self.async_request_refresh())
 
     async def _async_read_king_meter(self, bike: TenwaysBike) -> dict[str, float | int | None]:
         """Query the proprietary King Meter service, as the TENWAYS app does."""

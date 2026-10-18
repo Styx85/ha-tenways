@@ -25,6 +25,8 @@ No unlock, light, power, firmware, configuration or pairing commands are impleme
 - Firmware changes may require updating the command/parser. A failed read yields unavailable readings rather than reusing old telemetry.
 - The proprietary poll runs on any configured device exposing the King Meter service; other TENWAYS models are untested. Poll interval: five minutes by default, adjustable in the integration options (30–3600 s). Each poll opens a short BLE connection; the TENWAYS app cannot connect at the same time.
 - Bluetooth proxies must support active GATT connections.
+- HA only connects while the bike advertises (seen within the last 120 s). When it reappears after being off or out of range, HA polls immediately instead of waiting for the next interval. Whether the bike keeps advertising while switched off is not yet known.
+- While the bike is unreachable, totals (odometer, trip, ride time, max/average speed) keep their last read value; traction battery, current speed and raw fields become unavailable. Totals are kept in memory only and are empty again after an HA restart until the next successful read.
 - For bugs, enable debug logs for `custom_components.tenways` and submit a redacted excerpt. **Never publish a raw phone HCI log**; it may contain other devices' traffic and identifiers.
 
 ## Development

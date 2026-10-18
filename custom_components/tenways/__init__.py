@@ -1,6 +1,7 @@
 """TENWAYS BLE integration."""
 from __future__ import annotations
 
+from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
@@ -20,6 +21,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_refresh()
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
+    entry.async_on_unload(bluetooth.async_register_callback(
+        hass, coordinator.async_handle_advertisement,
+        bluetooth.BluetoothCallbackMatcher(address=entry.data[CONF_ADDRESS], connectable=True),
+        bluetooth.BluetoothScanningMode.PASSIVE,
+    ))
     return True
 
 

@@ -1,5 +1,6 @@
 """Coordinator against a simulated bike replaying frames from the HCI capture."""
 import asyncio
+import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -59,9 +60,9 @@ class FakeBike(BleakClient):
 
 @pytest.fixture
 def advertising():
-    info = SimpleNamespace(time=0.0, rssi=-60)
+    # Do not patch time.monotonic: the event loop clock depends on it.
+    info = SimpleNamespace(time=time.monotonic(), rssi=-60)
     with patch("custom_components.tenways.coordinator.bluetooth.async_last_service_info", return_value=info), \
-         patch("custom_components.tenways.coordinator.time.monotonic", return_value=1.0), \
          patch("custom_components.tenways.coordinator.bluetooth.async_ble_device_from_address", return_value=object()):
         yield
 
@@ -138,3 +139,48 @@ async def test_connection_failure_keeps_diagnostics(hass, advertising):
         await coordinator.async_refresh()
     assert coordinator.data.traction_battery is None
     assert coordinator.data.rssi == -60
+
+
+async def test_bike_switched_off_keeps_totals_only(hass, advertising):
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    with patch("custom_components.tenways.coordinator.establish_connection", return_value=FakeBike()):
+        await coordinator.async_refresh()
+    assert coordinator.data.traction_battery == 68
+    with patch("custom_components.tenways.coordinator.bluetooth.async_last_service_info", return_value=None), \
+         patch("custom_components.tenways.coordinator.bluetooth.async_ble_device_from_address", return_value=None):
+        await coordinator.async_refresh()
+    data = coordinator.data
+    assert (data.odometer, data.trip_distance, data.ride_seconds) == (120.1, 120.1, 34116)
+    assert (data.max_speed, data.average_speed) == (44.7, 12.6)
+    assert data.traction_battery is None
+    assert data.speed is None
+    assert data.raw_0b is None
+    assert data.serial == "YJ250319A002340"
+
+
+async def test_failed_read_keeps_totals_only(hass, advertising):
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    with patch("custom_components.tenways.coordinator.establish_connection", side_effect=[FakeBike(), TimeoutError]):
+        await coordinator.async_refresh()
+        await coordinator.async_refresh()
+    assert coordinator.data.odometer == 120.1
+    assert coordinator.data.traction_battery is None
+
+
+async def test_reappearing_bike_triggers_refresh(hass):
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    with patch.object(coordinator, "async_request_refresh") as refresh:
+        coordinator.async_handle_advertisement(None, None)
+        coordinator.async_handle_advertisement(None, None)
+        await hass.async_block_till_done()
+    assert refresh.call_count == 1
+
+
+async def test_visible_bike_advertisements_do_not_trigger_refresh(hass, advertising):
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    with patch("custom_components.tenways.coordinator.establish_connection", return_value=FakeBike()):
+        await coordinator.async_refresh()
+    with patch.object(coordinator, "async_request_refresh") as refresh:
+        coordinator.async_handle_advertisement(None, None)
+        await hass.async_block_till_done()
+    refresh.assert_not_called()
