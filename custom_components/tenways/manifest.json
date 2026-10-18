@@ -1,14 +1,26 @@
 {
   "domain": "tenways",
   "name": "TENWAYS BLE",
-  "version": "0.1.0",
-  "documentation": "https://github.com/Styx85/ha-tenways",
-  "issue_tracker": "https://github.com/Styx85/ha-tenways/issues",
+  "version": "0.2.0",
+  "documentation": "https://github.com/OWNER/ha-tenways",
+  "issue_tracker": "https://github.com/OWNER/ha-tenways/issues",
   "codeowners": [],
   "config_flow": true,
   "integration_type": "device",
   "iot_class": "local_polling",
-  "dependencies": ["bluetooth", "bluetooth_adapters"],
-  "requirements": ["bleak-retry-connector>=3.6.0"],
-  "bluetooth": [{"local_name": "Tenways-ble-*", "connectable": true}]
+  "dependencies": [
+    "bluetooth"
+  ],
+  "requirements": [
+    "bleak-retry-connector>=3.6.0"
+  ],
+  "bluetooth": [
+    {
+      "local_name": "Tenways-ble-*",
+      "connectable": true
+    }
+  ],
+  "after_dependencies": [
+    "bluetooth_adapters"
+  ]
 }

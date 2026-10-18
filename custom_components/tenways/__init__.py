@@ -8,15 +8,15 @@ from homeassistant.core import HomeAssistant
 from .const import CONF_ADDRESS
 from .coordinator import TenwaysCoordinator
 
-PLATFORMS = [Platform.SENSOR]
+PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = TenwaysCoordinator(hass, entry.data[CONF_ADDRESS])
-    # Do not block setup if the bicycle is away or powered off.
     entry.runtime_data = coordinator
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # Startup should not fail while the bicycle is switched off or away.
     await coordinator.async_refresh()
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 

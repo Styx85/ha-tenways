@@ -23,7 +23,7 @@ class TenwaysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, discovery_info: bluetooth.BluetoothServiceInfoBleak
     ) -> ConfigFlowResult:
         """Start from a Bluetooth advertisement."""
-        if not discovery_info.connectable or not discovery_info.name.startswith(NAME_PREFIX):
+        if not discovery_info.connectable or not (discovery_info.name or "").startswith(NAME_PREFIX):
             return self.async_abort(reason="not_supported")
         address = discovery_info.address.upper()
         await self.async_set_unique_id(address)

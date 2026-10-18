@@ -1,9 +1,11 @@
-"""TENWAYS battery sensor."""
+"""TENWAYS read-only battery and Bluetooth diagnostic sensors."""
 from __future__ import annotations
+
+from datetime import datetime
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE
+from homeassistant.const import PERCENTAGE, SIGNAL_STRENGTH_DECIBELS_MILLIWATT
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -16,30 +18,57 @@ from .coordinator import TenwaysCoordinator
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
-    async_add_entities([TenwaysBatterySensor(entry, entry.runtime_data)])
+    coordinator = entry.runtime_data
+    async_add_entities([
+        TenwaysSensor(entry, coordinator, "ble_battery", "BLE battery level", "battery_level"),
+        TenwaysSensor(entry, coordinator, "rssi", "Bluetooth signal strength", "rssi"),
+        TenwaysSensor(entry, coordinator, "last_seen", "Last Bluetooth advertisement", "last_advertisement"),
+        TenwaysSensor(entry, coordinator, "last_read", "Last successful GATT read", "last_successful_read"),
+        TenwaysSensor(entry, coordinator, "firmware", "BLE firmware revision", "firmware"),
+        TenwaysSensor(entry, coordinator, "model", "BLE model", "model"),
+        TenwaysSensor(entry, coordinator, "manufacturer", "BLE manufacturer", "manufacturer"),
+    ])
 
 
-class TenwaysBatterySensor(CoordinatorEntity[TenwaysCoordinator], SensorEntity):
-    """The value returned by BLE Battery Level 0x2A19."""
+class TenwaysSensor(CoordinatorEntity[TenwaysCoordinator], SensorEntity):
+    """A measured standard BLE field, or a diagnostic observation."""
 
     _attr_has_entity_name = True
-    _attr_name = "BLE battery level"
-    _attr_icon = "mdi:battery"
-    _attr_device_class = SensorDeviceClass.BATTERY
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_native_unit_of_measurement = PERCENTAGE
 
-    def __init__(self, entry: ConfigEntry, coordinator: TenwaysCoordinator) -> None:
+    def __init__(self, entry: ConfigEntry, coordinator: TenwaysCoordinator, key: str, name: str, field: str) -> None:
         super().__init__(coordinator)
         address = entry.data[CONF_ADDRESS]
-        self._attr_unique_id = f"{address}_battery"
+        self._field = field
+        self._attr_unique_id = f"{address}_{key}"
+        self._attr_name = name
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, address)},
-            name=entry.title,
-            manufacturer="TENWAYS",
-            model="Longtail Duo (BLE, unverified)",
+            identifiers={(DOMAIN, address)}, name=entry.title, manufacturer="TENWAYS",
         )
+        if key == "ble_battery":
+            # Preserve the v0.1 entity ID and unique ID during migration.
+            self._attr_unique_id = f"{address}_battery"
+            self._attr_icon = "mdi:battery-unknown"
+            self._attr_native_unit_of_measurement = PERCENTAGE
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+            # Intentionally NOT battery device class: physical battery is unverified.
+        elif key == "rssi":
+            self._attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH
+            self._attr_native_unit_of_measurement = SIGNAL_STRENGTH_DECIBELS_MILLIWATT
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+            self._attr_entity_registry_enabled_default = False
+        elif key in ("last_seen", "last_read"):
+            self._attr_device_class = SensorDeviceClass.TIMESTAMP
+            self._attr_entity_registry_enabled_default = False
+        else:
+            self._attr_entity_registry_enabled_default = False
+            self._attr_icon = "mdi:information-outline"
 
     @property
-    def native_value(self) -> int | None:
-        return self.coordinator.data
+    def native_value(self) -> int | str | datetime | None:
+        if self.coordinator.data is None:
+            return None
+        return getattr(self.coordinator.data, self._field)
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_update_success and self.coordinator.data is not None and self.native_value is not None

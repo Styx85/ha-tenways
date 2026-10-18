@@ -1,35 +1,26 @@
-# TENWAYS BLE for Home Assistant (v0.1.0 experimental)
+# TENWAYS BLE – Home Assistant Custom Integration (v0.2.0)
 
-Unofficial Home Assistant custom integration for TENWAYS bicycles. First target: Longtail Duo.
+Experimental read-only HACS integration, tested by syntax checks only. **Not yet tested against a real HA installation.**
 
-**Current functionality:** read the standard BLE Battery Level (`0x180F` / `0x2A19`) once every five minutes. The reported value has **not yet been confirmed to represent the bicycle's main traction battery** rather than its BLE module battery. This integration never sends proprietary commands.
+## Capabilities
 
-## Requirements
+- Bluetooth discovery for `Tenways-ble-*`, manual MAC entry as fallback.
+- **BLE Battery Level (0x2A19):** standard characteristic, **not validated as the traction battery**. Your Longtail Duo display shows a different level, so treat this as an unknown BLE module battery.
+- BLE signal strength (RSSI) when the recent advertisement is available.
+- Last advertisement time and last successful GATT read.
+- Optional standard Device Information (manufacturer, model, firmware), only if advertised; otherwise unavailable.
+- Diagnostic binary sensor: Bluetooth recently seen (last 120 seconds at poll time), not a connection or lock state.
+- 5-minute polling. Optional diagnostic entities are disabled by default in the entity registry.
+- No writes, unlocking, control, or proprietary command transmission.
 
-- Home Assistant with Bluetooth integration, and a Bluetooth adapter or an **active-connection-capable** ESPHome Bluetooth proxy within BLE range of the powered-on bicycle.
-- A TENWAYS bike advertising with a name starting with `Tenways-ble-`.
-- Make sure the TENWAYS phone app is disconnected during initial tests: concurrent connections may be restricted.
+## Installation
 
-## Installation through HACS (custom repository)
+Add this repository to HACS as a custom **Integration**, install it, restart HA, and add **TENWAYS BLE** under Settings → Devices & Services. Ensure a connectable Bluetooth adapter or active-capable ESPHome proxy can reach the bicycle.
 
-1. Push this complete repository to your GitHub account.
-2. In HACS → menu → **Custom repositories**, enter `https://github.com/YOUR_USERNAME/ha-tenways` and select **Integration**.
-3. Download TENWAYS BLE from HACS and restart Home Assistant.
-4. Settings → Devices & Services → Add integration → **TENWAYS BLE**.
-5. Select the discovered bicycle or enter its MAC address. If the bike is away/off, the sensor stays unavailable until a successful read.
+If v0.1 is already installed, install v0.2 and restart HA. The original battery unique ID is retained. In the device's Entities page, enable the diagnostic entities you want to inspect.
 
-## Manual installation
+## Important limitations
 
-Copy `custom_components/tenways` to `/config/custom_components/tenways`, restart HA, then add integration.
+The BLE battery reading from the user's Longtail Duo was `100%`, while the bicycle's display reported a different value. This integration **must not present it as drive-battery charge**. No trip distance, odometer, range, lights or locking values can yet be obtained without parsing verified proprietary communications. `Last advertisement` may be stale if the bike has disappeared, and only the RSSI/visible flag are freshness-gated.
 
-## Diagnostics
-
-Enable debug logs for `custom_components.tenways` / `homeassistant.components.tenways` if needed. A 5-minute poll establishes a BLE connection, reads only `0x2A19`, then disconnects. No broker, ESP32 firmware or additional service is required.
-
-## Caveats
-
-- **Experimental, not tested against a running Home Assistant instance or the physical bicycle.**
-- The bike might expose the BLE module battery rather than the traction battery. Verify against the bike's own display at less than 100% charge.
-- BLE address may not be stable across some operating modes; v0.1 assumes the observed MAC is stable.
-- Auto-discovery is triggered by advertisements; manual address entry is available when none is visible.
-- No lock, GPS, speed or proprietary telemetry support.
+`43480001-f001-4b49-4e47-204d45544552` is the proprietary KING METER-labelled service. It is deliberately untouched by this integration.
