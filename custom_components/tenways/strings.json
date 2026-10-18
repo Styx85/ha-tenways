@@ -7,6 +7,10 @@
         "data": {
           "address": "Bluetooth address"
         }
+      },
+      "bluetooth_confirm": {
+        "title": "Add TENWAYS bicycle",
+        "description": "Add {name}? Values are read only; no commands are sent to the bike."
       }
     },
     "error": {
@@ -15,7 +19,8 @@
     "abort": {
       "already_configured": "This bicycle is already configured.",
       "not_supported": "Unsupported Bluetooth device."
-    }
+    },
+    "flow_title": "{name}"
   },
   "options": {
     "step": {

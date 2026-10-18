@@ -7,6 +7,10 @@
         "data": {
           "address": "Bluetooth-Adresse"
         }
+      },
+      "bluetooth_confirm": {
+        "title": "TENWAYS-Fahrrad hinzufügen",
+        "description": "{name} hinzufügen? Werte werden nur gelesen, es werden keine Befehle an das Fahrrad gesendet."
       }
     },
     "error": {
@@ -15,7 +19,8 @@
     "abort": {
       "already_configured": "Dieses Fahrrad ist bereits eingerichtet.",
       "not_supported": "Bluetooth-Gerät nicht unterstützt."
-    }
+    },
+    "flow_title": "{name}"
   },
   "options": {
     "step": {

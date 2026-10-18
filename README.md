@@ -7,7 +7,7 @@ Unofficial HACS custom integration. The King Meter BLE protocol of the Longtail 
 
 Add this repository in HACS as a custom **Integration** repository. Install and restart Home Assistant. In Settings → Devices & services, add **TENWAYS BLE** and select the device advertised as **Longtail Duo**. Requires an HA Bluetooth adapter or an active-connection-capable ESPHome proxy within range. The companion TENWAYS app may block a concurrent BLE connection.
 
-If v0.2 was already installed against `Tenways-ble-400A59`, **do not expect the new traction sensors on that old entry**. Add the separately advertised **Longtail Duo** device. Both can remain installed for diagnostics.
+The bike advertises two endpoints. Only **Longtail Duo** (King Meter service) delivers bike data; HA offers it automatically and asks before adding it. The second endpoint `Tenways-ble-*` shows no useful values and is no longer offered; an existing entry for it can be deleted and stays deleted. It can still be added by hand for diagnostics.
 
 ## Exposed sensors
 

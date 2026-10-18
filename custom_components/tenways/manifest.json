@@ -6,10 +6,6 @@
   ],
   "bluetooth": [
     {
-      "local_name": "Tenways-ble-*",
-      "connectable": true
-    },
-    {
       "local_name": "Longtail Duo",
       "connectable": true
     },
