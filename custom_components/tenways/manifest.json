@@ -1,18 +1,8 @@
 {
   "domain": "tenways",
   "name": "TENWAYS BLE",
-  "version": "0.3.1",
-  "documentation": "https://github.com/OWNER/ha-tenways",
-  "issue_tracker": "https://github.com/OWNER/ha-tenways/issues",
-  "codeowners": [],
-  "config_flow": true,
-  "integration_type": "device",
-  "iot_class": "local_polling",
-  "dependencies": [
-    "bluetooth"
-  ],
-  "requirements": [
-    "bleak-retry-connector>=3.6.0"
+  "after_dependencies": [
+    "bluetooth_adapters"
   ],
   "bluetooth": [
     {
@@ -22,9 +12,26 @@
     {
       "local_name": "Longtail Duo",
       "connectable": true
+    },
+    {
+      "service_uuid": "43480001-f001-4b49-4e47-204d45544552",
+      "connectable": true
     }
   ],
-  "after_dependencies": [
-    "bluetooth_adapters"
-  ]
+  "codeowners": [
+    "@Styx85"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "bluetooth"
+  ],
+  "documentation": "https://github.com/Styx85/ha-tenways",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/Styx85/ha-tenways/issues",
+  "requirements": [
+    "bleak-retry-connector>=3.6.0",
+    "tenways-ble==0.2.0"
+  ],
+  "version": "0.4.0"
 }
