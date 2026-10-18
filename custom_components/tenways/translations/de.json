@@ -4,10 +4,28 @@
       "user": {
         "title": "TENWAYS-Fahrrad hinzufügen",
         "description": "Entdecktes TENWAYS-Fahrrad auswählen oder die Bluetooth-Adresse eingeben.",
-        "data": {"address": "Bluetooth-Adresse"}
+        "data": {
+          "address": "Bluetooth-Adresse"
+        }
       }
     },
-    "error": {"invalid_address": "Bitte eine gültige Bluetooth-MAC-Adresse eingeben."},
-    "abort": {"already_configured": "Dieses Fahrrad ist bereits eingerichtet.", "not_supported": "Bluetooth-Gerät nicht unterstützt."}
+    "error": {
+      "invalid_address": "Bitte eine gültige Bluetooth-MAC-Adresse eingeben."
+    },
+    "abort": {
+      "already_configured": "Dieses Fahrrad ist bereits eingerichtet.",
+      "not_supported": "Bluetooth-Gerät nicht unterstützt."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "TENWAYS-Optionen",
+        "description": "Jede Abfrage baut kurz eine BLE-Verbindung auf. Währenddessen kann sich die TENWAYS-App nicht verbinden.",
+        "data": {
+          "poll_seconds": "Abfrageintervall (Sekunden)"
+        }
+      }
+    }
   }
 }

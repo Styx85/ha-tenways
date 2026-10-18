@@ -6,10 +6,14 @@ import re
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.components import bluetooth
-from homeassistant.config_entries import ConfigFlowResult
+from homeassistant.config_entries import ConfigEntry, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_NAME
+from homeassistant.core import callback
 
-from .const import CONF_ADDRESS, DOMAIN, NAME_PREFIX
+from .const import (
+    CONF_ADDRESS, CONF_POLL_SECONDS, DOMAIN, MAX_POLL_SECONDS, MIN_POLL_SECONDS, NAME_PREFIX,
+    POLL_SECONDS,
+)
 
 
 def is_tenways_name(name: str | None) -> bool:
@@ -22,6 +26,11 @@ class TenwaysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Configure a TENWAYS bike."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        return TenwaysOptionsFlow()
 
     async def async_step_bluetooth(
         self, discovery_info: bluetooth.BluetoothServiceInfoBleak
@@ -67,3 +76,17 @@ class TenwaysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 {addr: f"{name} ({addr})" for addr, name in found.items()}
             )})
         return vol.Schema({vol.Required(CONF_ADDRESS): str})
+
+
+class TenwaysOptionsFlow(OptionsFlow):
+    """Adjust how often HA connects to the bike."""
+
+    async def async_step_init(self, user_input: dict | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            return self.async_create_entry(data=user_input)
+        current = self.config_entry.options.get(CONF_POLL_SECONDS, POLL_SECONDS)
+        return self.async_show_form(step_id="init", data_schema=vol.Schema({
+            vol.Required(CONF_POLL_SECONDS, default=current): vol.All(
+                vol.Coerce(int), vol.Range(min=MIN_POLL_SECONDS, max=MAX_POLL_SECONDS)
+            ),
+        }))

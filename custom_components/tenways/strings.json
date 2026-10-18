@@ -4,10 +4,28 @@
       "user": {
         "title": "Add TENWAYS bicycle",
         "description": "Select a discovered TENWAYS bike, or enter its Bluetooth address if none is currently visible.",
-        "data": {"address": "Bluetooth address"}
+        "data": {
+          "address": "Bluetooth address"
+        }
       }
     },
-    "error": {"invalid_address": "Enter a valid Bluetooth MAC address."},
-    "abort": {"already_configured": "This bicycle is already configured.", "not_supported": "Unsupported Bluetooth device."}
+    "error": {
+      "invalid_address": "Enter a valid Bluetooth MAC address."
+    },
+    "abort": {
+      "already_configured": "This bicycle is already configured.",
+      "not_supported": "Unsupported Bluetooth device."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "TENWAYS options",
+        "description": "Each poll opens a short BLE connection. The TENWAYS app cannot connect while HA is polling.",
+        "data": {
+          "poll_seconds": "Poll interval (seconds)"
+        }
+      }
+    }
   }
 }
