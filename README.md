@@ -1,3 +1,5 @@
+<p align="center"><img src="custom_components/tenways/brand/icon@2x.png" alt="" width="160"></p>
+
 # TENWAYS BLE for Home Assistant — experimental
 Unofficial HACS custom integration. The King Meter BLE protocol of the Longtail Duo is implemented in the [`tenways-ble`](https://github.com/Styx85/tenways-ble) library and verified byte-for-byte against an Android Bluetooth HCI capture of the official TENWAYS app. **Live operation in Home Assistant has not yet been confirmed on the bike.**
 
