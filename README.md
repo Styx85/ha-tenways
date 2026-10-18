@@ -1,5 +1,4 @@
-# TENWAYS BLE for Home Assistant — v0.3.0 (experimental)
-
+# TENWAYS BLE for Home Assistant — experimental
 Unofficial HACS custom integration. **The Longtail Duo status request has been reproduced from the owner's Android Bluetooth HCI capture; the live HA integration has not yet been tested on the bike.**
 
 ## Installation
