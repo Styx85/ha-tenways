@@ -11,7 +11,9 @@ from bleak import BleakClient
 from bleak_retry_connector import establish_connection
 from homeassistant.components import bluetooth
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+
+from .protocol import STATUS_REQUEST, WRITE_UUID, NOTIFY_UUID, LONGTAIL_ADDRESS, decode_status
 
 from .const import (
     ADVERTISEMENT_MAX_AGE_SECONDS, BATTERY_UUID, DEVICE_INFO_UUIDS, POLL_SECONDS,
@@ -32,6 +34,12 @@ class TenwaysData:
     manufacturer: str | None = None
     model: str | None = None
     firmware: str | None = None
+    traction_battery: int | None = None
+    max_speed: float | None = None
+    average_speed: float | None = None
+    odometer: float | None = None
+    ride_seconds: int | None = None
+    trip_distance: float | None = None
 
 
 class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
@@ -73,9 +81,39 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
             client = await establish_connection(
                 BleakClient, device, self.address, max_attempts=2, timeout=20.0,
             )
-            raw = bytes(await asyncio.wait_for(client.read_gatt_char(BATTERY_UUID), 8))
-            if len(raw) != 1 or raw[0] > 100:
-                raise ValueError(f"invalid 0x2A19 payload: {raw.hex()}")
+            raw = b''
+            if client.services.get_characteristic(BATTERY_UUID):
+                try:
+                    raw = bytes(await asyncio.wait_for(client.read_gatt_char(BATTERY_UUID), 8))
+                    if len(raw) != 1 or raw[0] > 100:
+                        raw = b''
+                except Exception as exc:
+                    _LOGGER.debug('Standard battery read unavailable: %s', exc)
+            telemetry = {}
+            if (client.services.get_characteristic(WRITE_UUID) is not None
+                    and client.services.get_characteristic(NOTIFY_UUID) is not None
+                    and self.address.upper() == LONGTAIL_ADDRESS):
+                # Request/response with notify setup before the single recorded query.
+                pending: asyncio.Future[dict[str, float | int]] = self.hass.loop.create_future()
+                def on_notify(_sender, payload: bytearray) -> None:
+                    if pending.done():
+                        return
+                    try:
+                        parsed = decode_status(bytes(payload))
+                    except ValueError:
+                        return
+                    pending.set_result(parsed)
+                try:
+                    await client.start_notify(NOTIFY_UUID, on_notify)
+                    await client.write_gatt_char(WRITE_UUID, STATUS_REQUEST, response=False)
+                    telemetry = await asyncio.wait_for(pending, timeout=8.0)
+                except Exception as exc:
+                    _LOGGER.debug('Longtail telemetry unavailable (%s): %s', self.address, exc)
+                finally:
+                    try:
+                        await client.stop_notify(NOTIFY_UUID)
+                    except Exception:
+                        pass
             # Optional reads only when advertised as present in the GATT table.
             for key, uuid in DEVICE_INFO_UUIDS.items():
                 if key in self._cached_info:
@@ -93,10 +131,10 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                     _LOGGER.debug("Optional TENWAYS %s characteristic not readable: %s", key, exc)
             self._last_successful_read = datetime.now(timezone.utc)
             return TenwaysData(
-                battery_level=raw[0], rssi=rssi, bluetooth_visible=True,
+                battery_level=raw[0] if raw else None, rssi=rssi, bluetooth_visible=True,
                 last_advertisement=seen_at,
                 last_successful_read=self._last_successful_read,
-                **self._cached_info,
+                **self._cached_info, **telemetry,
             )
         except asyncio.CancelledError:
             raise

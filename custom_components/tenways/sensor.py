@@ -21,6 +21,12 @@ async def async_setup_entry(
     coordinator = entry.runtime_data
     async_add_entities([
         TenwaysSensor(entry, coordinator, "ble_battery", "BLE battery level", "battery_level"),
+        TenwaysSensor(entry, coordinator, "traction_battery", "Traction battery", "traction_battery"),
+        TenwaysSensor(entry, coordinator, "odometer", "Odometer", "odometer"),
+        TenwaysSensor(entry, coordinator, "trip_distance", "Trip distance", "trip_distance"),
+        TenwaysSensor(entry, coordinator, "max_speed", "Maximum speed", "max_speed"),
+        TenwaysSensor(entry, coordinator, "average_speed", "Average speed", "average_speed"),
+        TenwaysSensor(entry, coordinator, "ride_seconds", "Ride duration", "ride_seconds"),
         TenwaysSensor(entry, coordinator, "rssi", "Bluetooth signal strength", "rssi"),
         TenwaysSensor(entry, coordinator, "last_seen", "Last Bluetooth advertisement", "last_advertisement"),
         TenwaysSensor(entry, coordinator, "last_read", "Last successful GATT read", "last_successful_read"),
@@ -51,6 +57,22 @@ class TenwaysSensor(CoordinatorEntity[TenwaysCoordinator], SensorEntity):
             self._attr_native_unit_of_measurement = PERCENTAGE
             self._attr_state_class = SensorStateClass.MEASUREMENT
             # Intentionally NOT battery device class: physical battery is unverified.
+        elif key == "traction_battery":
+            self._attr_native_unit_of_measurement = PERCENTAGE
+            self._attr_device_class = SensorDeviceClass.BATTERY
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+        elif key in ("odometer", "trip_distance"):
+            self._attr_native_unit_of_measurement = "km"
+            self._attr_device_class = SensorDeviceClass.DISTANCE
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING if key == "odometer" else SensorStateClass.MEASUREMENT
+        elif key in ("max_speed", "average_speed"):
+            self._attr_native_unit_of_measurement = "km/h"
+            self._attr_device_class = SensorDeviceClass.SPEED
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+        elif key == "ride_seconds":
+            self._attr_native_unit_of_measurement = "s"
+            self._attr_device_class = SensorDeviceClass.DURATION
+            self._attr_state_class = SensorStateClass.MEASUREMENT
         elif key == "rssi":
             self._attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH
             self._attr_native_unit_of_measurement = SIGNAL_STRENGTH_DECIBELS_MILLIWATT

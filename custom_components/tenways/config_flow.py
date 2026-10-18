@@ -11,6 +11,10 @@ from homeassistant.const import CONF_NAME
 
 from .const import CONF_ADDRESS, DOMAIN, NAME_PREFIX
 
+
+def is_tenways_name(name: str | None) -> bool:
+    return bool(name and (name.startswith(NAME_PREFIX) or name.lower().startswith("longtail duo")))
+
 MAC_PATTERN = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 
 
@@ -23,7 +27,7 @@ class TenwaysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, discovery_info: bluetooth.BluetoothServiceInfoBleak
     ) -> ConfigFlowResult:
         """Start from a Bluetooth advertisement."""
-        if not discovery_info.connectable or not (discovery_info.name or "").startswith(NAME_PREFIX):
+        if not discovery_info.connectable or not is_tenways_name(discovery_info.name):
             return self.async_abort(reason="not_supported")
         address = discovery_info.address.upper()
         await self.async_set_unique_id(address)
@@ -39,7 +43,7 @@ class TenwaysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         found = {
             info.address.upper(): info.name
             for info in bluetooth.async_discovered_service_info(self.hass, connectable=True)
-            if info.name and info.name.startswith(NAME_PREFIX)
+            if info.name and is_tenways_name(info.name)
         }
         if user_input is not None:
             address = user_input[CONF_ADDRESS].strip().upper()

@@ -1,7 +1,7 @@
 {
   "domain": "tenways",
   "name": "TENWAYS BLE",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "documentation": "https://github.com/OWNER/ha-tenways",
   "issue_tracker": "https://github.com/OWNER/ha-tenways/issues",
   "codeowners": [],
@@ -17,6 +17,10 @@
   "bluetooth": [
     {
       "local_name": "Tenways-ble-*",
+      "connectable": true
+    },
+    {
+      "local_name": "Longtail Duo",
       "connectable": true
     }
   ],
