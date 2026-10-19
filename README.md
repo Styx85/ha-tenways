@@ -16,8 +16,9 @@ The bike advertises two endpoints. Only **Longtail Duo** (King Meter service) de
 - Current speed from field `0x06` (disabled by default; read 0 while parked, not yet confirmed while riding).
 - Firmware (`2.20.16` observed; the app shows `1.4.0` elsewhere, so this may be another component) and serial number, read once per HA start.
 - Light on/off (binary sensor) from field `0x11`, identified in HA (0 = off).
-- **Unverified:** assist level (0–5) and remaining range (km), both read from field `0x0B`. On the parked bike at 68 % it read 655, 60, 54, 50, 45, 43 for levels 0–5. If it is a code per level, the assist level is right; if it is a range per level, the values fall as the battery drains, the assist level becomes unavailable and the range sensor is the right one. Neither app nor display shows a range. Both are live values (unavailable while the bike is off).
-- Disabled diagnostic sensors for the raw status fields `0x0B`, `0x11`, `0x23`, `0x4F` (meaning of `0x0B`, `0x23`, `0x4F` unknown).
+- Remaining range from field `0x0B` (`remainingRange` in the TENWAYS app). It reads 60, 54, 50, 45, 43 for assist levels 1–5 at 68 % and is not available at level 0, where the app also shows none. The unit is not stated in the app; km is probable.
+- **Unverified:** power in W from field `0x23` (`power` in the app, values above 3000 ignored); 0 while parked, not yet seen while riding.
+- Disabled diagnostic sensors for the raw status fields `0x0B`, `0x11`, `0x23`, `0x4F`; `0x4F` is not interpreted.
 - Standard Bluetooth battery (`0x2A19`): **not the traction battery**; on the Longtail Duo it counts up by 1 roughly every read while the bike is on and resets to 0 when it is switched off, so it looks like a counter. Disabled diagnostic sensor.
 - Last successful read (shows how old the kept values are), BLE signal, last advertisement and optional Device Information characteristics.
 
@@ -30,7 +31,7 @@ No unlock, light, power, firmware, configuration or pairing commands are impleme
 - The proprietary poll runs on any configured device exposing the King Meter service; other TENWAYS models are untested. Poll interval: five minutes by default, adjustable in the integration options (30–3600 s). Each poll opens a short BLE connection; the TENWAYS app cannot connect at the same time.
 - Bluetooth proxies must support active GATT connections.
 - HA only connects while the bike advertises (seen within the last 120 s). When it reappears after being off or out of range, HA polls immediately instead of waiting for the next interval. Whether the bike keeps advertising while switched off is not yet known.
-- While the bike is off, out of range or a read fails, every sensor keeps its last read value, also across HA restarts; "Last successful read" says when it was read. Only current speed, light, assist level, remaining range and signal strength become unavailable.
+- While the bike is off, out of range or a read fails, every sensor keeps its last read value, also across HA restarts; "Last successful read" says when it was read. Only current speed, light, remaining range, power and signal strength become unavailable.
 - For bugs, enable debug logs for `custom_components.tenways` and submit a redacted excerpt. **Never publish a raw phone HCI log**; it may contain other devices' traffic and identifiers.
 
 ## Development

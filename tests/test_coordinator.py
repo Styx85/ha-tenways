@@ -88,8 +88,8 @@ async def test_info_once_then_status(hass, advertising):
     assert first.ride_seconds == 34116
     assert first.speed == 0.0
     assert first.light is False
-    assert first.assist_level == 0
-    assert first.remaining_range is None
+    assert first.remaining_range is None  # 655 at assist level 0 means none
+    assert first.power == 0
     assert first.raw_0b == 655
     assert first.firmware == "2.20.16"
     assert first.serial == "YJ250319A002340"
@@ -108,10 +108,18 @@ def test_status_reply_rebuilds():
     assert _status_with_0b(655) == STATUS_REPLY
 
 
-@pytest.mark.parametrize(("raw", "level", "range_km"), [(60, 1, 60), (43, 5, 43), (52, None, 52)])
-async def test_field_0b_as_assist_level_and_range(hass, advertising, raw, level, range_km):
+@pytest.mark.parametrize(("raw", "range_km"), [(60, 60), (43, 43), (128, None), (655, None), (0x8000, None)])
+async def test_remaining_range_follows_app_rule(hass, advertising, raw, range_km):
     (data,) = await _refresh(hass, FakeBike(replies={STATUS_REQUEST: _status_with_0b(raw), INFO_REQUEST: INFO_REPLY}))
-    assert (data.assist_level, data.remaining_range, data.raw_0b) == (level, range_km, raw)
+    assert (data.remaining_range, data.raw_0b) == (range_km, raw)
+
+
+@pytest.mark.parametrize(("raw", "power"), [(250, 250), (3000, 3000), (3001, None)])
+async def test_power_ignores_values_above_3000(hass, advertising, raw, power):
+    reply = build_frame(TYPE_READ, CMD_STATUS, STATUS_REPLY[4:-3].replace(
+        bytes.fromhex("23 02 00 00"), bytes([0x23, 2]) + raw.to_bytes(2, "big")))
+    (data,) = await _refresh(hass, FakeBike(replies={STATUS_REQUEST: reply, INFO_REQUEST: INFO_REPLY}))
+    assert data.power == power
 
 
 async def test_missing_info_reply_does_not_block_status(hass, advertising):
@@ -176,7 +184,7 @@ async def test_bike_switched_off_keeps_last_values(hass, advertising):
     assert data.serial == "YJ250319A002340"
     assert (data.last_successful_read, data.last_advertisement) == (read_at, seen_at)
     assert data.speed is None and data.light is None and data.rssi is None
-    assert data.assist_level is None
+    assert data.remaining_range is None and data.power is None
     assert not data.bluetooth_visible
 
 
