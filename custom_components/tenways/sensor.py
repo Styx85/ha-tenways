@@ -5,7 +5,7 @@ from datetime import datetime
 
 from homeassistant.components.sensor import RestoreSensor, SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, SIGNAL_STRENGTH_DECIBELS_MILLIWATT, EntityCategory, UnitOfTime
+from homeassistant.const import PERCENTAGE, SIGNAL_STRENGTH_DECIBELS_MILLIWATT, EntityCategory, UnitOfPower, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -28,8 +28,8 @@ async def async_setup_entry(
         TenwaysSensor(entry, coordinator, "max_speed", "Maximum speed", "max_speed"),
         TenwaysSensor(entry, coordinator, "average_speed", "Average speed", "average_speed"),
         TenwaysSensor(entry, coordinator, "ride_seconds", "Ride duration", "ride_seconds"),
-        TenwaysSensor(entry, coordinator, "assist_level", "Assist level (unverified)", "assist_level"),
-        TenwaysSensor(entry, coordinator, "remaining_range", "Remaining range (unverified)", "remaining_range"),
+        TenwaysSensor(entry, coordinator, "remaining_range", "Remaining range", "remaining_range"),
+        TenwaysSensor(entry, coordinator, "power", "Power (unverified)", "power"),
         TenwaysSensor(entry, coordinator, "rssi", "Bluetooth signal strength", "rssi"),
         TenwaysSensor(entry, coordinator, "last_seen", "Last Bluetooth advertisement", "last_advertisement"),
         TenwaysSensor(entry, coordinator, "last_read", "Last successful GATT read", "last_successful_read"),
@@ -97,14 +97,15 @@ class TenwaysSensor(CoordinatorEntity[TenwaysCoordinator], RestoreSensor):
             self._attr_suggested_display_precision = 1
             self._attr_device_class = SensorDeviceClass.DURATION
             self._attr_state_class = SensorStateClass.MEASUREMENT
-        elif key == "assist_level":
-            # Lookup of field 0x0B; unknown values stay unavailable.
-            self._attr_icon = "mdi:bicycle-electric"
-            self._attr_state_class = SensorStateClass.MEASUREMENT
         elif key == "remaining_range":
-            # Field 0x0B read as km; neither app nor display shows a range.
+            # Field 0x0B (remainingRange in the app); km is probable, not stated there.
             self._attr_native_unit_of_measurement = "km"
             self._attr_device_class = SensorDeviceClass.DISTANCE
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+        elif key == "power":
+            # Field 0x23 (power in the app), probably motor power; 0 while parked, not seen riding.
+            self._attr_native_unit_of_measurement = UnitOfPower.WATT
+            self._attr_device_class = SensorDeviceClass.POWER
             self._attr_state_class = SensorStateClass.MEASUREMENT
         elif key == "rssi":
             self._attr_device_class = SensorDeviceClass.SIGNAL_STRENGTH

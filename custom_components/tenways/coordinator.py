@@ -15,13 +15,20 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from tenways_ble import TenwaysBike, TenwaysError, TenwaysProtocolError
 
 from .const import (
-    ADVERTISEMENT_MAX_AGE_SECONDS, ASSIST_LEVELS, BATTERY_UUID, DEVICE_INFO_UUIDS, RAW_0B_ASSIST_OFF,
+    ADVERTISEMENT_MAX_AGE_SECONDS, BATTERY_UUID, DEVICE_INFO_UUIDS, MAX_POWER_W,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 # Only describe the bike right now; every other field keeps its last read value.
-LIVE_FIELDS = ('speed', 'light', 'assist_level', 'remaining_range', 'rssi')
+LIVE_FIELDS = ('speed', 'light', 'remaining_range', 'power', 'rssi')
+
+
+def _remaining_range(raw: int | None) -> int | None:
+    """Field 0x0B as the app reads it: any byte >= 0x80 (655 at assist level 0) means none."""
+    if raw is None or max(raw >> 8, raw & 0xFF) >= 0x80:
+        return None
+    return raw
 
 
 @dataclass(frozen=True)
@@ -45,8 +52,8 @@ class TenwaysData:
     ride_seconds: int | None = None
     trip_distance: float | None = None
     light: bool | None = None
-    assist_level: int | None = None
     remaining_range: int | None = None
+    power: int | None = None
     raw_0b: int | None = None
     raw_11: int | None = None
     raw_23: int | None = None
@@ -180,9 +187,8 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
             'trip_distance': status.trip_km,
             # Field 0x11 follows the light switch (observed in HA, 0 = off).
             'light': None if status.raw_11 is None else status.raw_11 != 0,
-            # Both unverified readings of field 0x0B; see const.ASSIST_LEVELS.
-            'assist_level': ASSIST_LEVELS.get(status.raw_0b),
-            'remaining_range': None if status.raw_0b in (None, RAW_0B_ASSIST_OFF) else status.raw_0b,
+            'remaining_range': _remaining_range(status.raw_0b),
+            'power': status.raw_23 if status.raw_23 is not None and status.raw_23 <= MAX_POWER_W else None,
             'raw_0b': status.raw_0b,
             'raw_11': status.raw_11,
             'raw_23': status.raw_23,
