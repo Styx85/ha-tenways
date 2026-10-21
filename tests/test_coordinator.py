@@ -104,6 +104,14 @@ def _status_with_0b(value: int) -> bytes:
     return build_frame(TYPE_READ, CMD_STATUS, payload)
 
 
+async def test_odometer_and_trip_come_from_different_fields(hass, advertising):
+    # 0x0C is the odometer, 0x09 the trip; they only differ once the trip is reset.
+    reply = build_frame(TYPE_READ, CMD_STATUS, STATUS_REPLY[4:-3].replace(
+        bytes.fromhex("09 04 00 00 04 b1"), bytes.fromhex("09 04 00 00 00 64")))
+    (data,) = await _refresh(hass, FakeBike(replies={STATUS_REQUEST: reply, INFO_REQUEST: INFO_REPLY}))
+    assert (data.odometer, data.trip_distance) == (120.1, 10.0)
+
+
 def test_status_reply_rebuilds():
     assert _status_with_0b(655) == STATUS_REPLY
 

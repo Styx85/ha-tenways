@@ -12,7 +12,7 @@ The bike advertises two endpoints. Only **Longtail Duo** (King Meter service) de
 ## Exposed sensors
 
 - Traction battery (%) from proprietary status field `0x0F`; previously observed 68%.
-- Odometer (km), trip distance (km), maximum and average ride speed (km/h), accumulated ride time (shown in hours).
+- Odometer (km, field `0x0C`), trip distance (km, field `0x09`), maximum and average ride speed (km/h), accumulated ride time (shown in hours).
 - Current speed from field `0x06` (disabled by default; read 0 while parked, not yet confirmed while riding).
 - Firmware (`2.20.16` observed; the app shows `1.4.0` elsewhere, so this may be another component) and serial number, read once per HA start.
 - Light on/off (binary sensor) from field `0x11`, identified in HA (0 = off).

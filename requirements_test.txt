@@ -1,7 +1,7 @@
 # Matches Home Assistant 2026.2.3, including the bluetooth component's requirements.
 pytest-homeassistant-custom-component==0.13.316
 pytest-timeout
-tenways-ble==0.2.0
+tenways-ble==0.3.0
 aiousbwatcher==1.1.1
 bleak==2.1.1
 bleak-retry-connector==4.4.3
