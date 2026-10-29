@@ -1,11 +1,14 @@
 """Coordinator against a simulated bike replaying frames from the HCI capture."""
 import asyncio
+from datetime import timedelta
 import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from bleak import BleakClient
 import pytest
+from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import async_fire_time_changed
 from tenways_ble.const import TENWAYS_NOTIFY_UUID, TENWAYS_WRITE_UUID
 from tenways_ble.protocol import CMD_STATUS, INFO_REQUEST, STATUS_REQUEST, TYPE_READ, build_frame
 
@@ -231,3 +234,48 @@ async def test_visible_bike_advertisements_do_not_trigger_refresh(hass, advertis
         coordinator.async_handle_advertisement(None, None)
         await hass.async_block_till_done()
     refresh.assert_not_called()
+
+
+async def test_failed_status_read_does_not_date_the_values(hass, advertising):
+    first, second = await _refresh(hass, FakeBike(), FakeBike(replies={}))
+    assert first.last_successful_read is not None
+    assert second.traction_battery == 68  # kept
+    assert second.last_successful_read == first.last_successful_read  # but not re-dated
+
+
+async def test_never_read_has_no_read_time(hass, advertising):
+    (data,) = await _refresh(hass, FakeBike(replies={}))
+    assert data.last_successful_read is None
+
+
+class HangingBike(FakeBike):
+    async def write_gatt_char(self, uuid, data, response=None):
+        await asyncio.sleep(3600)
+
+
+async def test_stalled_exchange_is_cut_off(hass, advertising):
+    with patch("custom_components.tenways.coordinator.KING_METER_TIMEOUT_SECONDS", 0.05):
+        (data,) = await _refresh(hass, HangingBike())
+    assert data.traction_battery is None
+    assert data.last_successful_read is None
+    assert not data.speed
+
+
+async def test_live_values_expire_without_advertisements(hass, advertising):
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    with patch("custom_components.tenways.coordinator.establish_connection", return_value=FakeBike()):
+        await coordinator.async_refresh()
+    assert coordinator.data.bluetooth_visible and coordinator.data.speed == 0.0
+    coordinator.async_handle_advertisement(None, None)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=200))
+    await hass.async_block_till_done()
+    data = coordinator.data
+    assert not data.bluetooth_visible
+    assert data.speed is None and data.light is None and data.rssi is None
+    assert data.traction_battery == 68 and data.odometer == 120.1  # totals stay
+    # The bike coming back triggers a poll again.
+    with patch.object(coordinator, "async_request_refresh") as refresh:
+        coordinator.async_handle_advertisement(None, None)
+        await hass.async_block_till_done()
+    assert refresh.call_count == 1
+    await coordinator.async_shutdown()

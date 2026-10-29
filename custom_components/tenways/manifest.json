@@ -29,5 +29,5 @@
     "bleak-retry-connector>=3.6.0",
     "tenways-ble==0.3.0"
   ],
-  "version": "0.7.0"
+  "version": "0.8.0"
 }

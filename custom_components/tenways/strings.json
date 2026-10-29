@@ -32,5 +32,80 @@
         }
       }
     }
+  },
+  "entity": {
+    "sensor": {
+      "ble_battery": {
+        "name": "BLE battery level"
+      },
+      "traction_battery": {
+        "name": "Traction battery"
+      },
+      "odometer": {
+        "name": "Odometer"
+      },
+      "trip_distance": {
+        "name": "Trip distance"
+      },
+      "speed": {
+        "name": "Speed"
+      },
+      "max_speed": {
+        "name": "Maximum speed"
+      },
+      "average_speed": {
+        "name": "Average speed"
+      },
+      "ride_seconds": {
+        "name": "Ride duration"
+      },
+      "remaining_range": {
+        "name": "Remaining range"
+      },
+      "power": {
+        "name": "Power (unverified)"
+      },
+      "rssi": {
+        "name": "Bluetooth signal strength"
+      },
+      "last_seen": {
+        "name": "Last Bluetooth advertisement"
+      },
+      "last_read": {
+        "name": "Last successful read"
+      },
+      "firmware": {
+        "name": "Firmware"
+      },
+      "serial": {
+        "name": "Serial number"
+      },
+      "raw_0b": {
+        "name": "Raw field 0x0B"
+      },
+      "raw_11": {
+        "name": "Raw field 0x11"
+      },
+      "raw_23": {
+        "name": "Raw field 0x23"
+      },
+      "raw_4f": {
+        "name": "Raw field 0x4F"
+      },
+      "model": {
+        "name": "BLE model"
+      },
+      "manufacturer": {
+        "name": "BLE manufacturer"
+      }
+    },
+    "binary_sensor": {
+      "bluetooth_visible": {
+        "name": "Bluetooth recently seen"
+      },
+      "light": {
+        "name": "Light"
+      }
+    }
   }
 }

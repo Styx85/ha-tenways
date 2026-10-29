@@ -9,6 +9,9 @@ from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
+from homeassistant.helpers.selector import (
+    SelectOptionDict, SelectSelector, SelectSelectorConfig, SelectSelectorMode,
+)
 from tenways_ble.const import TENWAYS_SERVICE_UUID
 
 from .const import (
@@ -69,15 +72,16 @@ class TenwaysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(step_id="bluetooth_confirm", description_placeholders={"name": name})
 
     async def async_step_user(self, user_input: dict | None = None) -> ConfigFlowResult:
-        """Allow selecting a discovered bike or entering an address."""
+        """Pick a discovered bike or type its address; typing stays possible when bikes are visible."""
+        configured = self._async_current_ids()
         found = {
-            info.address.upper(): info.name
+            info.address.upper(): info.name or f"TENWAYS {info.address[-5:].upper()}"
             for info in bluetooth.async_discovered_service_info(self.hass, connectable=True)
-            if info.name and is_tenways_name(info.name)
+            if has_telemetry(info) and info.address.upper() not in configured
         }
         if user_input is not None:
             address = user_input[CONF_ADDRESS].strip().upper()
-            if address in found or MAC_PATTERN.fullmatch(address):
+            if MAC_PATTERN.fullmatch(address):
                 await self.async_set_unique_id(address)
                 self._abort_if_unique_id_configured()
                 name = found.get(address, f"TENWAYS {address[-5:]}")
@@ -93,9 +97,10 @@ class TenwaysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     def _schema(found: dict[str, str]) -> vol.Schema:
         if found:
-            return vol.Schema({vol.Required(CONF_ADDRESS): vol.In(
-                {addr: f"{name} ({addr})" for addr, name in found.items()}
-            )})
+            return vol.Schema({vol.Required(CONF_ADDRESS): SelectSelector(SelectSelectorConfig(
+                options=[SelectOptionDict(value=addr, label=f"{name} ({addr})") for addr, name in found.items()],
+                custom_value=True, mode=SelectSelectorMode.DROPDOWN,
+            ))})
         return vol.Schema({vol.Required(CONF_ADDRESS): str})
 
 

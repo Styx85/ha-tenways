@@ -30,6 +30,7 @@ async def _setup_without_bike(hass):
          patch("custom_components.tenways.bluetooth.async_register_callback", return_value=lambda: None):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
+    return entry
 
 
 async def test_values_restored_after_restart(hass):

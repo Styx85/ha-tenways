@@ -32,5 +32,80 @@
         }
       }
     }
+  },
+  "entity": {
+    "sensor": {
+      "ble_battery": {
+        "name": "BLE-Akkustand"
+      },
+      "traction_battery": {
+        "name": "Antriebsakku"
+      },
+      "odometer": {
+        "name": "Kilometerstand"
+      },
+      "trip_distance": {
+        "name": "Fahrtstrecke"
+      },
+      "speed": {
+        "name": "Geschwindigkeit"
+      },
+      "max_speed": {
+        "name": "Höchstgeschwindigkeit"
+      },
+      "average_speed": {
+        "name": "Durchschnittsgeschwindigkeit"
+      },
+      "ride_seconds": {
+        "name": "Fahrzeit"
+      },
+      "remaining_range": {
+        "name": "Restreichweite"
+      },
+      "power": {
+        "name": "Leistung (ungeprüft)"
+      },
+      "rssi": {
+        "name": "Bluetooth-Signalstärke"
+      },
+      "last_seen": {
+        "name": "Letzte Bluetooth-Meldung"
+      },
+      "last_read": {
+        "name": "Letzter erfolgreicher Abruf"
+      },
+      "firmware": {
+        "name": "Firmware"
+      },
+      "serial": {
+        "name": "Seriennummer"
+      },
+      "raw_0b": {
+        "name": "Rohwert 0x0B"
+      },
+      "raw_11": {
+        "name": "Rohwert 0x11"
+      },
+      "raw_23": {
+        "name": "Rohwert 0x23"
+      },
+      "raw_4f": {
+        "name": "Rohwert 0x4F"
+      },
+      "model": {
+        "name": "BLE-Modell"
+      },
+      "manufacturer": {
+        "name": "BLE-Hersteller"
+      }
+    },
+    "binary_sensor": {
+      "bluetooth_visible": {
+        "name": "Bluetooth kürzlich gesehen"
+      },
+      "light": {
+        "name": "Licht"
+      }
+    }
   }
 }

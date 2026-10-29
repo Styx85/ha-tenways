@@ -4,65 +4,58 @@ from __future__ import annotations
 from datetime import datetime
 
 from homeassistant.components.sensor import RestoreSensor, SensorDeviceClass, SensorStateClass
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, SIGNAL_STRENGTH_DECIBELS_MILLIWATT, EntityCategory, UnitOfPower, UnitOfTime
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_ADDRESS, DOMAIN
+from . import TenwaysConfigEntry
+from .const import CONF_ADDRESS
 from .coordinator import LIVE_FIELDS, TenwaysCoordinator
+from .entity import TenwaysEntity
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
+    hass: HomeAssistant, entry: TenwaysConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
     coordinator = entry.runtime_data
     async_add_entities([
-        TenwaysSensor(entry, coordinator, "ble_battery", "BLE battery level", "battery_level"),
-        TenwaysSensor(entry, coordinator, "traction_battery", "Traction battery", "traction_battery"),
-        TenwaysSensor(entry, coordinator, "odometer", "Odometer", "odometer"),
-        TenwaysSensor(entry, coordinator, "trip_distance", "Trip distance", "trip_distance"),
-        TenwaysSensor(entry, coordinator, "speed", "Speed", "speed"),
-        TenwaysSensor(entry, coordinator, "max_speed", "Maximum speed", "max_speed"),
-        TenwaysSensor(entry, coordinator, "average_speed", "Average speed", "average_speed"),
-        TenwaysSensor(entry, coordinator, "ride_seconds", "Ride duration", "ride_seconds"),
-        TenwaysSensor(entry, coordinator, "remaining_range", "Remaining range", "remaining_range"),
-        TenwaysSensor(entry, coordinator, "power", "Power (unverified)", "power"),
-        TenwaysSensor(entry, coordinator, "rssi", "Bluetooth signal strength", "rssi"),
-        TenwaysSensor(entry, coordinator, "last_seen", "Last Bluetooth advertisement", "last_advertisement"),
-        TenwaysSensor(entry, coordinator, "last_read", "Last successful GATT read", "last_successful_read"),
-        TenwaysSensor(entry, coordinator, "firmware", "Firmware", "firmware"),
-        TenwaysSensor(entry, coordinator, "serial", "Serial number", "serial"),
-        TenwaysSensor(entry, coordinator, "raw_0b", "Unknown field 0x0B", "raw_0b"),
-        TenwaysSensor(entry, coordinator, "raw_11", "Unknown field 0x11", "raw_11"),
-        TenwaysSensor(entry, coordinator, "raw_23", "Unknown field 0x23", "raw_23"),
-        TenwaysSensor(entry, coordinator, "raw_4f", "Unknown field 0x4F", "raw_4f"),
-        TenwaysSensor(entry, coordinator, "model", "BLE model", "model"),
-        TenwaysSensor(entry, coordinator, "manufacturer", "BLE manufacturer", "manufacturer"),
+        TenwaysSensor(entry, coordinator, "ble_battery", "battery_level"),
+        TenwaysSensor(entry, coordinator, "traction_battery", "traction_battery"),
+        TenwaysSensor(entry, coordinator, "odometer", "odometer"),
+        TenwaysSensor(entry, coordinator, "trip_distance", "trip_distance"),
+        TenwaysSensor(entry, coordinator, "speed", "speed"),
+        TenwaysSensor(entry, coordinator, "max_speed", "max_speed"),
+        TenwaysSensor(entry, coordinator, "average_speed", "average_speed"),
+        TenwaysSensor(entry, coordinator, "ride_seconds", "ride_seconds"),
+        TenwaysSensor(entry, coordinator, "remaining_range", "remaining_range"),
+        TenwaysSensor(entry, coordinator, "power", "power"),
+        TenwaysSensor(entry, coordinator, "rssi", "rssi"),
+        TenwaysSensor(entry, coordinator, "last_seen", "last_advertisement"),
+        TenwaysSensor(entry, coordinator, "last_read", "last_successful_read"),
+        TenwaysSensor(entry, coordinator, "firmware", "firmware"),
+        TenwaysSensor(entry, coordinator, "serial", "serial"),
+        TenwaysSensor(entry, coordinator, "raw_0b", "raw_0b"),
+        TenwaysSensor(entry, coordinator, "raw_11", "raw_11"),
+        TenwaysSensor(entry, coordinator, "raw_23", "raw_23"),
+        TenwaysSensor(entry, coordinator, "raw_4f", "raw_4f"),
+        TenwaysSensor(entry, coordinator, "model", "model"),
+        TenwaysSensor(entry, coordinator, "manufacturer", "manufacturer"),
     ])
 
 
-class TenwaysSensor(CoordinatorEntity[TenwaysCoordinator], RestoreSensor):
+class TenwaysSensor(TenwaysEntity, RestoreSensor):
     """A measured standard BLE field, or a diagnostic observation.
 
     Apart from live fields, the last read value stays while the bike is off
     and is restored after an HA restart; "Last successful GATT read" dates it.
     """
 
-    _attr_has_entity_name = True
     _restored: int | float | str | datetime | None = None
 
-    def __init__(self, entry: ConfigEntry, coordinator: TenwaysCoordinator, key: str, name: str, field: str) -> None:
-        super().__init__(coordinator)
+    def __init__(self, entry: TenwaysConfigEntry, coordinator: TenwaysCoordinator, key: str, field: str) -> None:
+        super().__init__(entry, coordinator, key)
         address = entry.data[CONF_ADDRESS]
         self._field = field
-        self._attr_unique_id = f"{address}_{key}"
-        self._attr_name = name
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, address)}, name=entry.title, manufacturer="TENWAYS",
-        )
         if key == "ble_battery":
             # Preserve the v0.1 entity ID and unique ID during migration.
             self._attr_unique_id = f"{address}_battery"
