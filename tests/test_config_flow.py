@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from homeassistant.config_entries import SOURCE_BLUETOOTH
+from homeassistant.config_entries import SOURCE_BLUETOOTH, SOURCE_USER
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -52,3 +52,58 @@ async def test_endpoint_without_telemetry_is_not_offered(hass):
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "not_supported"
+
+
+def _visible(*infos):
+    return patch(
+        "custom_components.tenways.config_flow.bluetooth.async_discovered_service_info",
+        return_value=list(infos),
+    )
+
+
+async def test_manual_address_works_while_a_bike_is_visible(hass):
+    with _visible(_advertisement("Longtail Duo")):
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+        assert result["type"] is FlowResultType.FORM
+        with patch("custom_components.tenways.async_setup_entry", return_value=True):
+            result = await hass.config_entries.flow.async_configure(
+                result["flow_id"], {CONF_ADDRESS: "aa:bb:cc:dd:ee:ff"},
+            )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_ADDRESS] == "AA:BB:CC:DD:EE:FF"
+
+
+async def test_discovered_bike_is_offered_by_name(hass):
+    with _visible(_advertisement("Longtail Duo")):
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+        with patch("custom_components.tenways.async_setup_entry", return_value=True):
+            result = await hass.config_entries.flow.async_configure(
+                result["flow_id"], {CONF_ADDRESS: "E8:88:6C:31:B3:0D"},
+            )
+    assert result["title"] == "Longtail Duo"
+
+
+async def test_invalid_address_is_rejected(hass):
+    with _visible():
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_ADDRESS: "nonsense"})
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {CONF_ADDRESS: "invalid_address"}
+
+
+async def test_configured_bike_cannot_be_added_twice(hass):
+    MockConfigEntry(domain=DOMAIN, data={CONF_ADDRESS: "AA:BB:CC:DD:EE:FF"}, unique_id="AA:BB:CC:DD:EE:FF").add_to_hass(hass)
+    with _visible():
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_ADDRESS: "aa:bb:cc:dd:ee:ff"})
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
+async def test_non_connectable_discovery_is_ignored(hass):
+    info = _advertisement("Longtail Duo")
+    info.connectable = False
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_BLUETOOTH}, data=info,
+    )
+    assert result["type"] is FlowResultType.ABORT

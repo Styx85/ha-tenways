@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 import logging
 import time
@@ -10,12 +10,14 @@ import time
 from bleak import BleakClient
 from bleak_retry_connector import establish_connection
 from homeassistant.components import bluetooth
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from tenways_ble import TenwaysBike, TenwaysError, TenwaysProtocolError
 
 from .const import (
     ADVERTISEMENT_MAX_AGE_SECONDS, BATTERY_UUID, DEVICE_INFO_UUIDS,
+    KING_METER_TIMEOUT_SECONDS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -68,6 +70,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         # Last read values, kept while the bike is off or a read fails.
         self._last: dict[str, float | int | str] = {}
         self._absent = True
+        self._expiry: CALLBACK_TYPE | None = None
 
     async def _async_update_data(self) -> TenwaysData:
         info = bluetooth.async_last_service_info(self.hass, self.address, connectable=True)
@@ -91,6 +94,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         self._absent = False
 
         client: BleakClient | None = None
+        read_ok = False
         try:
             client = await establish_connection(
                 BleakClient, device, self.address, max_attempts=2, timeout=20.0,
@@ -100,9 +104,17 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                     raw = bytes(await asyncio.wait_for(client.read_gatt_char(BATTERY_UUID), 8))
                     if len(raw) == 1 and raw[0] <= 100:
                         self._last['battery_level'] = raw[0]
+                        read_ok = True
                 except Exception as exc:
                     _LOGGER.debug('Standard battery read unavailable: %s', exc)
-            telemetry = await self._async_read_king_meter(TenwaysBike(client))
+            try:
+                telemetry = await asyncio.wait_for(
+                    self._async_read_king_meter(TenwaysBike(client)), KING_METER_TIMEOUT_SECONDS,
+                )
+            except TimeoutError:
+                _LOGGER.debug('King Meter exchange timed out (%s)', self.address)
+                telemetry = {}
+            read_ok = read_ok or bool(telemetry)
             live = {key: telemetry.pop(key, None) for key in LIVE_FIELDS if key != 'rssi'}
             self._last.update(telemetry)
             # Optional reads only when advertised as present in the GATT table.
@@ -120,7 +132,9 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                     if isinstance(exc, asyncio.CancelledError):
                         raise
                     _LOGGER.debug("Optional TENWAYS %s characteristic not readable: %s", key, exc)
-            self._last_successful_read = datetime.now(timezone.utc)
+            if read_ok:
+                # Only a valid reply dates the kept values; a failed status read must not.
+                self._last_successful_read = datetime.now(timezone.utc)
             return TenwaysData(
                 rssi=rssi, bluetooth_visible=True, **live,
                 last_advertisement=self._last_advertisement,
@@ -144,10 +158,31 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
     def async_handle_advertisement(
         self, _info: bluetooth.BluetoothServiceInfoBleak, _change: bluetooth.BluetoothChange
     ) -> None:
-        """Poll right away when the bike reappears instead of waiting an interval."""
+        """Poll right away when the bike reappears; expire live values when it goes quiet."""
+        self._last_advertisement = datetime.now(timezone.utc)
+        if self._expiry is not None:
+            self._expiry()
+        self._expiry = async_call_later(self.hass, ADVERTISEMENT_MAX_AGE_SECONDS, self._async_expire_live)
         if self._absent:
             self._absent = False
             self.hass.async_create_task(self.async_request_refresh())
+
+    @callback
+    def _async_expire_live(self, _now: datetime) -> None:
+        """No advertisement for a while: live values and visibility lapse before the next poll."""
+        self._expiry = None
+        self._absent = True
+        if self.data is not None:
+            self.async_set_updated_data(replace(
+                self.data, speed=None, light=None, remaining_range=None, power=None, rssi=None,
+                bluetooth_visible=False, last_advertisement=self._last_advertisement,
+            ))
+
+    async def async_shutdown(self) -> None:
+        if self._expiry is not None:
+            self._expiry()
+            self._expiry = None
+        await super().async_shutdown()
 
     async def _async_read_king_meter(self, bike: TenwaysBike) -> dict[str, float | int | None]:
         """Query the proprietary King Meter service, as the TENWAYS app does."""
