@@ -1,0 +1,11 @@
+version: 2
+updates:
+  # CI actions only: requirements_test.txt mirrors a specific Home Assistant
+  # release and is bumped by hand together with hacs.json.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
