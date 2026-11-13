@@ -73,7 +73,8 @@ class TenwaysSensor(TenwaysEntity, RestoreSensor):
         elif key in ("odometer", "trip_distance"):
             self._attr_native_unit_of_measurement = "km"
             self._attr_device_class = SensorDeviceClass.DISTANCE
-            self._attr_state_class = SensorStateClass.TOTAL_INCREASING if key == "odometer" else SensorStateClass.MEASUREMENT
+            # Lifetime counters: the bike only resets the trip when told to (in the TENWAYS app).
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
         elif key == "speed":
             # Field 0x06 read 0 while parked; not yet confirmed while riding.
             self._attr_native_unit_of_measurement = "km/h"
@@ -89,7 +90,7 @@ class TenwaysSensor(TenwaysEntity, RestoreSensor):
             self._attr_suggested_unit_of_measurement = UnitOfTime.HOURS
             self._attr_suggested_display_precision = 1
             self._attr_device_class = SensorDeviceClass.DURATION
-            self._attr_state_class = SensorStateClass.MEASUREMENT
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING  # accumulated until the trip is reset
         elif key == "remaining_range":
             # Field 0x0B (remainingRange in the app); km is probable, not stated there.
             self._attr_native_unit_of_measurement = "km"
