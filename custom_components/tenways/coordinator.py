@@ -8,15 +8,17 @@ import logging
 import time
 
 from bleak import BleakClient
+from bleak.exc import BleakError
 from bleak_retry_connector import establish_connection
 from homeassistant.components import bluetooth
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from tenways_ble import TenwaysBike, TenwaysError, TenwaysProtocolError
 
 from .const import (
-    ADVERTISEMENT_MAX_AGE_SECONDS, BATTERY_UUID, DEVICE_INFO_UUIDS,
+    ADVERTISEMENT_MAX_AGE_SECONDS, DOMAIN, BATTERY_UUID, DEVICE_INFO_UUIDS,
     KING_METER_TIMEOUT_SECONDS,
 )
 
@@ -71,6 +73,8 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         self._last: dict[str, float | int | str] = {}
         self._absent = True
         self._expiry: CALLBACK_TYPE | None = None
+        # One BLE session at a time: a poll and a clock sync must not share the bike.
+        self._ble_lock = asyncio.Lock()
 
     async def _async_update_data(self) -> TenwaysData:
         info = bluetooth.async_last_service_info(self.hass, self.address, connectable=True)
@@ -93,66 +97,67 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
             return fallback
         self._absent = False
 
-        client: BleakClient | None = None
-        read_ok = False
-        try:
-            client = await establish_connection(
-                BleakClient, device, self.address, max_attempts=2, timeout=20.0,
-            )
-            if client.services.get_characteristic(BATTERY_UUID):
-                try:
-                    raw = bytes(await asyncio.wait_for(client.read_gatt_char(BATTERY_UUID), 8))
-                    if len(raw) == 1 and raw[0] <= 100:
-                        self._last['battery_level'] = raw[0]
-                        read_ok = True
-                except Exception as exc:
-                    _LOGGER.debug('Standard battery read unavailable: %s', exc)
+        async with self._ble_lock:
+            client: BleakClient | None = None
+            read_ok = False
             try:
-                telemetry = await asyncio.wait_for(
-                    self._async_read_king_meter(TenwaysBike(client)), KING_METER_TIMEOUT_SECONDS,
+                client = await establish_connection(
+                    BleakClient, device, self.address, max_attempts=2, timeout=20.0,
                 )
-            except TimeoutError:
-                _LOGGER.debug('King Meter exchange timed out (%s)', self.address)
-                telemetry = {}
-            read_ok = read_ok or bool(telemetry)
-            live = {key: telemetry.pop(key, None) for key in LIVE_FIELDS if key != 'rssi'}
-            self._last.update(telemetry)
-            # Optional reads only when advertised as present in the GATT table.
-            for key, uuid in DEVICE_INFO_UUIDS.items():
-                if key in self._last:
-                    continue
-                if client.services.get_characteristic(uuid) is None:
-                    continue
+                if client.services.get_characteristic(BATTERY_UUID):
+                    try:
+                        raw = bytes(await asyncio.wait_for(client.read_gatt_char(BATTERY_UUID), 8))
+                        if len(raw) == 1 and raw[0] <= 100:
+                            self._last['battery_level'] = raw[0]
+                            read_ok = True
+                    except Exception as exc:
+                        _LOGGER.debug('Standard battery read unavailable: %s', exc)
                 try:
-                    value = bytes(await asyncio.wait_for(client.read_gatt_char(uuid), 3))
-                    decoded = value.decode("utf-8", errors="replace").strip("\x00 ")
-                    if decoded:
-                        self._last[key] = decoded[:100]
-                except (Exception, asyncio.CancelledError) as exc:
-                    if isinstance(exc, asyncio.CancelledError):
-                        raise
-                    _LOGGER.debug("Optional TENWAYS %s characteristic not readable: %s", key, exc)
-            if read_ok:
-                # Only a valid reply dates the kept values; a failed status read must not.
-                self._last_successful_read = datetime.now(timezone.utc)
-            return TenwaysData(
-                rssi=rssi, bluetooth_visible=True, **live,
-                last_advertisement=self._last_advertisement,
-                last_successful_read=self._last_successful_read,
-                **self._last,
-            )
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            # Retain advertisement diagnostics even if GATT is busy or fails.
-            _LOGGER.debug("TENWAYS read failed (%s): %s", self.address, exc)
-            return fallback
-        finally:
-            if client is not None and client.is_connected:
-                try:
-                    await asyncio.wait_for(client.disconnect(), 5)
-                except Exception as exc:
-                    _LOGGER.debug("TENWAYS disconnect failed: %s", exc)
+                    telemetry = await asyncio.wait_for(
+                        self._async_read_king_meter(TenwaysBike(client)), KING_METER_TIMEOUT_SECONDS,
+                    )
+                except TimeoutError:
+                    _LOGGER.debug('King Meter exchange timed out (%s)', self.address)
+                    telemetry = {}
+                read_ok = read_ok or bool(telemetry)
+                live = {key: telemetry.pop(key, None) for key in LIVE_FIELDS if key != 'rssi'}
+                self._last.update(telemetry)
+                # Optional reads only when advertised as present in the GATT table.
+                for key, uuid in DEVICE_INFO_UUIDS.items():
+                    if key in self._last:
+                        continue
+                    if client.services.get_characteristic(uuid) is None:
+                        continue
+                    try:
+                        value = bytes(await asyncio.wait_for(client.read_gatt_char(uuid), 3))
+                        decoded = value.decode("utf-8", errors="replace").strip("\x00 ")
+                        if decoded:
+                            self._last[key] = decoded[:100]
+                    except (Exception, asyncio.CancelledError) as exc:
+                        if isinstance(exc, asyncio.CancelledError):
+                            raise
+                        _LOGGER.debug("Optional TENWAYS %s characteristic not readable: %s", key, exc)
+                if read_ok:
+                    # Only a valid reply dates the kept values; a failed status read must not.
+                    self._last_successful_read = datetime.now(timezone.utc)
+                return TenwaysData(
+                    rssi=rssi, bluetooth_visible=True, **live,
+                    last_advertisement=self._last_advertisement,
+                    last_successful_read=self._last_successful_read,
+                    **self._last,
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                # Retain advertisement diagnostics even if GATT is busy or fails.
+                _LOGGER.debug("TENWAYS read failed (%s): %s", self.address, exc)
+                return fallback
+            finally:
+                if client is not None and client.is_connected:
+                    try:
+                        await asyncio.wait_for(client.disconnect(), 5)
+                    except Exception as exc:
+                        _LOGGER.debug("TENWAYS disconnect failed: %s", exc)
 
     @callback
     def async_handle_advertisement(
@@ -166,6 +171,33 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         if self._absent:
             self._absent = False
             self.hass.async_create_task(self.async_request_refresh())
+
+    async def async_set_clock(self, moment: datetime) -> None:
+        """Set the bike's clock to ``moment`` (local wall-clock fields). Needs the bike in range."""
+        info = bluetooth.async_last_service_info(self.hass, self.address, connectable=True)
+        device = bluetooth.async_ble_device_from_address(self.hass, self.address, connectable=True)
+        visible = info is not None and time.monotonic() - info.time < ADVERTISEMENT_MAX_AGE_SECONDS
+        if device is None or not visible:
+            raise HomeAssistantError(translation_domain=DOMAIN, translation_key="bike_not_in_range")
+        async with self._ble_lock:
+            client: BleakClient | None = None
+            try:
+                client = await establish_connection(
+                    BleakClient, device, self.address, max_attempts=2, timeout=20.0,
+                )
+                await asyncio.wait_for(TenwaysBike(client).set_clock(moment), KING_METER_TIMEOUT_SECONDS)
+            except (TenwaysError, TenwaysProtocolError, BleakError, OSError, TimeoutError) as exc:
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN, translation_key="clock_failed",
+                    translation_placeholders={"error": str(exc) or type(exc).__name__},
+                ) from exc
+            finally:
+                if client is not None and client.is_connected:
+                    try:
+                        await asyncio.wait_for(client.disconnect(), 5)
+                    except Exception as exc:
+                        _LOGGER.debug("TENWAYS disconnect failed: %s", exc)
+        _LOGGER.info("Set the clock of %s to %s", self.address, moment)
 
     @callback
     def _async_expire_live(self, _now: datetime) -> None:

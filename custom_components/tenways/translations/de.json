@@ -106,6 +106,19 @@
       "light": {
         "name": "Licht"
       }
+    },
+    "button": {
+      "set_clock": {
+        "name": "Uhr stellen"
+      }
+    }
+  },
+  "exceptions": {
+    "bike_not_in_range": {
+      "message": "Das Rad ist nicht in Bluetooth-Reichweite. Schalte es in der Nähe des Adapters oder Proxys ein und schließe die TENWAYS-App."
+    },
+    "clock_failed": {
+      "message": "Die Uhr des Rads konnte nicht gestellt werden: {error}"
     }
   }
 }

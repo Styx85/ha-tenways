@@ -106,6 +106,19 @@
       "light": {
         "name": "Light"
       }
+    },
+    "button": {
+      "set_clock": {
+        "name": "Set clock"
+      }
+    }
+  },
+  "exceptions": {
+    "bike_not_in_range": {
+      "message": "The bike is not in Bluetooth range. Switch it on near the adapter or proxy and close the TENWAYS app."
+    },
+    "clock_failed": {
+      "message": "Could not set the bike clock: {error}"
     }
   }
 }
