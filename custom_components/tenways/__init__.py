@@ -10,7 +10,7 @@ from homeassistant.helpers import entity_registry as er
 from .const import CONF_ADDRESS, CONF_POLL_SECONDS, DOMAIN, POLL_SECONDS
 from .coordinator import TenwaysCoordinator
 
-PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
+PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.BUTTON]
 
 # Entities that earlier versions created and that no longer exist.
 STALE_ENTITIES = (

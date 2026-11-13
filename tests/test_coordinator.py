@@ -1,12 +1,13 @@
 """Coordinator against a simulated bike replaying frames from the HCI capture."""
 import asyncio
-from datetime import timedelta
+from datetime import datetime, timedelta
 import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from bleak import BleakClient
 import pytest
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 from tenways_ble.const import TENWAYS_NOTIFY_UUID, TENWAYS_WRITE_UUID
@@ -279,3 +280,55 @@ async def test_live_values_expire_without_advertisements(hass, advertising):
         await hass.async_block_till_done()
     assert refresh.call_count == 1
     await coordinator.async_shutdown()
+
+
+CLOCK_WRITE = bytes.fromhex("63 00 0a 01 3c 07 02 1a 0a 12 0e 20 12 ff f3 45")
+CLOCK_REPLY = bytes.fromhex("63 00 09 01 3c 07 02 1a 12 0e 20 12 ee ed 45")
+MOMENT = datetime(2026, 10, 18, 14, 32, 18)
+
+
+async def test_set_clock_sends_the_app_frame_and_disconnects(hass, advertising):
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    bike = FakeBike(replies={CLOCK_WRITE: CLOCK_REPLY})
+    with patch("custom_components.tenways.coordinator.establish_connection", return_value=bike):
+        await coordinator.async_set_clock(MOMENT)
+    assert bike.writes == [CLOCK_WRITE]
+    assert not bike.connected
+
+
+async def test_set_clock_needs_the_bike_in_range(hass):
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    with patch("custom_components.tenways.coordinator.bluetooth.async_last_service_info", return_value=None), \
+         patch("custom_components.tenways.coordinator.bluetooth.async_ble_device_from_address", return_value=None), \
+         patch("custom_components.tenways.coordinator.establish_connection") as connect:
+        with pytest.raises(HomeAssistantError):
+            await coordinator.async_set_clock(MOMENT)
+    connect.assert_not_called()
+
+
+async def test_set_clock_without_acknowledgement_is_reported(hass, advertising):
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    bike = FakeBike(replies={})
+    with patch("custom_components.tenways.coordinator.establish_connection", return_value=bike), \
+         patch("custom_components.tenways.coordinator.KING_METER_TIMEOUT_SECONDS", 0.05):
+        with pytest.raises(HomeAssistantError):
+            await coordinator.async_set_clock(MOMENT)
+    assert not bike.connected
+
+
+async def test_connection_failure_while_setting_clock_is_reported(hass, advertising):
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    with patch("custom_components.tenways.coordinator.establish_connection", side_effect=TimeoutError):
+        with pytest.raises(HomeAssistantError):
+            await coordinator.async_set_clock(MOMENT)
+
+
+async def test_poll_waits_for_a_clock_sync_in_progress(hass, advertising):
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    async with coordinator._ble_lock:
+        refresh = asyncio.create_task(coordinator.async_refresh())
+        await asyncio.sleep(0.05)
+        assert not refresh.done()
+    with patch("custom_components.tenways.coordinator.establish_connection", return_value=FakeBike()):
+        await refresh
+    assert coordinator.data.traction_battery == 68

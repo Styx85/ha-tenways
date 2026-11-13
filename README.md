@@ -23,7 +23,7 @@ The bike advertises two endpoints. Only **Longtail Duo** (King Meter service) de
 - Standard Bluetooth battery (`0x2A19`): **not the traction battery**; on the Longtail Duo it counts up by 1 roughly every read while the bike is on and resets to 0 when it is switched off, so it looks like a counter. Disabled diagnostic sensor.
 - Last successful read (shows how old the kept values are), BLE signal, last advertisement and optional Device Information characteristics.
 
-No unlock, light, power, firmware, configuration or pairing commands are implemented. Only the two recorded read requests (device info `0x04`, status `0x0B`) are sent via the `4348…0002` write characteristic; replies arrive through `4348…0003` notify, are reassembled if fragmented and must pass length and CRC-16/MODBUS checks. The clock sync the app performs is deliberately not sent. No spontaneous notifications were observed without a request.
+No unlock, light, power, firmware, configuration or pairing commands are implemented. The two recorded read requests (device info `0x04`, status `0x0B`) are sent via the `4348…0002` write characteristic on every poll; replies arrive through `4348…0003` notify, are reassembled if fragmented and must pass length and CRC-16/MODBUS checks. The only other thing ever sent is the clock sync of the **Set clock** button, and only when you press it. No spontaneous notifications were observed without a request.
 
 ## Limitations
 
@@ -36,6 +36,10 @@ No unlock, light, power, firmware, configuration or pairing commands are impleme
 - Live values (current speed, light, remaining range, power) lapse after two minutes without an advertisement instead of waiting for the next poll. "Last successful read" only moves when a valid reply arrived.
 - The integration offers a diagnostics download (Bluetooth address and serial number redacted); attach it to bug reports.
 - For bugs, enable debug logs for `custom_components.tenways` and submit a redacted excerpt. **Never publish a raw phone HCI log**; it may contain other devices' traffic and identifiers.
+
+## Setting the bike's clock
+
+The bike has no daylight saving and keeps showing summer time until it is set. The **Set clock** button (a configuration entity of the bike device) sends Home Assistant's local time to the bike, the same write the TENWAYS app makes. It sends nothing on its own; press it with the bike switched on and in range of an adapter or proxy, with the TENWAYS app closed. Press it again after each time change. **Not yet confirmed on a bike:** check the display after the first press. The frame matches a capture of the app byte for byte, but whether the bike takes local time as given and acknowledges it is still open; if the time is off, please report what the display shows.
 
 ## Distance per period and ride log
 
