@@ -17,10 +17,12 @@ def _stored(entity_id, value, unit=None):
     return (State(entity_id, str(value)), {"native_value": value, "native_unit_of_measurement": unit})
 
 
-async def _setup_without_bike(hass):
+async def _setup_without_bike(hass, stale=()):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_ADDRESS: ADDRESS}, unique_id=ADDRESS, title="Longtail Duo")
     entry.add_to_hass(hass)
     registry = er.async_get(hass)
+    for suffix in stale:
+        registry.async_get_or_create("sensor", DOMAIN, f"{ADDRESS}_{suffix}", config_entry=entry)
     # Pre-register so disabled-by-default entities are enabled and IDs are known.
     for key in ("traction_battery", "odometer", "last_read", "speed"):
         registry.async_get_or_create("sensor", DOMAIN, f"{ADDRESS}_{key}", suggested_object_id=f"tenways_{key}", config_entry=entry)
@@ -52,3 +54,24 @@ async def test_values_restored_after_restart(hass):
 async def test_nothing_known_is_unavailable(hass):
     await _setup_without_bike(hass)
     assert hass.states.get("sensor.tenways_traction_battery").state == STATE_UNAVAILABLE
+
+
+async def test_counters_are_total_increasing(hass):
+    from homeassistant.components.sensor import SensorStateClass
+    from custom_components.tenways.coordinator import TenwaysCoordinator
+    from custom_components.tenways.sensor import TenwaysSensor
+
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_ADDRESS: ADDRESS}, title="Longtail Duo")
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    for key in ("odometer", "trip_distance", "ride_seconds"):
+        assert TenwaysSensor(entry, coordinator, key, key).state_class is SensorStateClass.TOTAL_INCREASING
+    for key in ("max_speed", "average_speed"):
+        assert TenwaysSensor(entry, coordinator, key, key).state_class is SensorStateClass.MEASUREMENT
+
+
+async def test_orphaned_assist_level_entity_is_removed(hass):
+    registry = er.async_get(hass)
+    await _setup_without_bike(hass, stale=("assist_level",))
+    assert registry.async_get_entity_id("sensor", DOMAIN, f"{ADDRESS}_assist_level") is None
+    # Current entities stay.
+    assert registry.async_get_entity_id("sensor", DOMAIN, f"{ADDRESS}_traction_battery") is not None
