@@ -178,9 +178,13 @@ class TenwaysTotals:
 
     # Automatic writes; attempts stop for the day after MAX_FAILURES_PER_DAY failures.
 
+    def trip_reset_allowed(self, now: datetime) -> bool:
+        """Fewer than MAX_FAILURES_PER_DAY failed resets today."""
+        return self._failures(now.date().isoformat(), "reset_failures") < MAX_FAILURES_PER_DAY
+
     def trip_reset_due(self, now: datetime) -> bool:
-        today = now.date().isoformat()
-        return self.state.trip_reset_day != today and self._failures(today, "reset_failures") < MAX_FAILURES_PER_DAY
+        """No reset yet today (and not given up for today)."""
+        return self.state.trip_reset_day != now.date().isoformat() and self.trip_reset_allowed(now)
 
     def clock_due(self, now: datetime) -> bool:
         s = self.state

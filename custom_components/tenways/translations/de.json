@@ -31,13 +31,13 @@
         "data": {
           "poll_seconds": "Abfrageintervall (Sekunden)",
           "ride_hours_before": "Fahrzeit vor der Zählung durch HA (Stunden)",
-          "daily_trip_reset": "Trip einmal täglich zurücksetzen",
-          "auto_clock": "Uhr automatisch stellen"
+          "auto_clock": "Uhr automatisch stellen",
+          "trip_reset": "Trip automatisch zurücksetzen"
         },
         "data_description": {
           "ride_hours_before": "Gesamtfahrzeit = dieser Wert plus alle Trips, die HA seitdem gelesen hat. Die Fahrzeit des Rads von vor dem ersten Trip-Reset eintragen, damit der Gesamtdurchschnitt (Kilometerstand ÷ Gesamtfahrzeit) stimmt.",
-          "daily_trip_reset": "Nach dem ersten erfolgreichen Abruf des Tages, in derselben Verbindung, damit das Display die heutige Fahrt zeigt. Die Gesamtwerte in HA zählen weiter. Wird das Rad erst nach einer Fahrt gelesen, verschwindet diese Fahrt vom Display (HA hat ihre Werte).",
-          "auto_clock": "In derselben Verbindung wie ein Abruf: nach einer Zeitumstellung, alle 90 Tage und beim ersten Einschalten der Option."
+          "auto_clock": "In derselben Verbindung wie ein Abruf: nach einer Zeitumstellung, alle 90 Tage und beim ersten Einschalten der Option.",
+          "trip_reset": "Direkt nach einem Abruf, in derselben Verbindung, damit es auch beim sofortigen Losfahren klappt. Erst wird gelesen, HA behält also die Fahrt; ein leerer Trip wird nicht geschrieben. „Bei jedem Einschalten“ lässt eine Fahrt auf dem Display, wenn das Rad beim Heimkommen gelesen wird, und setzt sie beim nächsten Einschalten zurück."
         }
       }
     }
@@ -152,6 +152,15 @@
     },
     "trip_reset_failed": {
       "message": "Der Trip konnte nicht zurückgesetzt werden: {error}"
+    }
+  },
+  "selector": {
+    "trip_reset": {
+      "options": {
+        "off": "Aus",
+        "daily": "Einmal täglich (erster Abruf)",
+        "ride": "Bei jedem Einschalten (pro Fahrt)"
+      }
     }
   }
 }

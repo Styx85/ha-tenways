@@ -20,7 +20,11 @@ CONF_RIDE_HOURS_BEFORE = "ride_hours_before"
 # Advertised name prefixes of the King Meter models tenways-ble has a profile for.
 KING_METER_NAME_PREFIXES = ("Longtail Duo", "CGO009", "CGO800", "AGO", "CARGO")
 ISSUES_URL = "https://github.com/Styx85/ha-tenways/issues"
-# Clear the trip after the first successful read of each day, in the same connection.
-CONF_DAILY_TRIP_RESET = "daily_trip_reset"
+# Clear the trip automatically, in the poll's connection right after a read.
+CONF_TRIP_RESET = "trip_reset"
+TRIP_RESET_OFF = "off"
+TRIP_RESET_DAILY = "daily"  # after the first read of each day
+TRIP_RESET_RIDE = "ride"  # at each switch-on, so the display shows the current ride
+TRIP_RESET_MODES = (TRIP_RESET_OFF, TRIP_RESET_DAILY, TRIP_RESET_RIDE)
 # Set the clock in the same connection after a daylight saving change or every 90 days.
 CONF_AUTO_CLOCK = "auto_clock"

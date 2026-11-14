@@ -368,28 +368,41 @@ ZERO_TRIP_REPLY = build_frame(TYPE_READ, CMD_STATUS, STATUS_REPLY[4:-3]
 CLOCK_MOMENT = datetime(2026, 10, 18, 14, 32, 18, tzinfo=dt_util.get_default_time_zone())
 
 
-async def _refresh_with_options(hass, *bikes, daily_trip_reset=False, auto_clock=False, at=CLOCK_MOMENT):
+async def _refresh_with_options(hass, *bikes, trip_reset="off", auto_clock=False, at=CLOCK_MOMENT, between=None):
+    """Poll once per bike; ``between(coordinator)`` runs before each poll after the first."""
     from custom_components.tenways.totals import TenwaysTotals
 
     totals = TenwaysTotals(hass, "entry")
     await totals.async_load()
     coordinator = TenwaysCoordinator(
-        hass, ADDRESS, 300, totals, "Longtail Duo", daily_trip_reset=daily_trip_reset, auto_clock=auto_clock,
+        hass, ADDRESS, 300, totals, "Longtail Duo", trip_reset=trip_reset, auto_clock=auto_clock,
     )
     results = []
     with patch("custom_components.tenways.coordinator.establish_connection", side_effect=list(bikes)), \
          patch("custom_components.tenways.coordinator.dt_util.now", return_value=at):
-        for _ in bikes:
+        for i, _ in enumerate(bikes):
+            if i and between is not None:
+                between(coordinator)
             await coordinator.async_refresh()
             results.append(coordinator.data)
     await totals.async_unload()
     return totals, results
 
 
+def _reappeared(coordinator):
+    coordinator._new_session = True  # the bike went quiet and advertises again
+
+
+def _status(trip_km: int, ride_s: int) -> bytes:
+    return build_frame(TYPE_READ, CMD_STATUS, STATUS_REPLY[4:-3]
+        .replace(bytes.fromhex("09 04 00 00 04 b1"), bytes([0x09, 4]) + (trip_km * 10).to_bytes(4, "big"))
+        .replace(bytes.fromhex("0a 04 00 00 85 44"), bytes([0x0A, 4]) + ride_s.to_bytes(4, "big")))
+
+
 async def test_daily_reset_follows_the_first_read_in_the_same_connection(hass, advertising):
     replies = {STATUS_REQUEST: STATUS_REPLY, INFO_REQUEST: INFO_REPLY, CLEAR_TRIP: CLEAR_TRIP}
     first, second = FakeBike(replies=dict(replies)), FakeBike(replies=dict(replies))
-    totals, (data, _) = await _refresh_with_options(hass, first, second, daily_trip_reset=True)
+    totals, (data, _) = await _refresh_with_options(hass, first, second, trip_reset="daily")
     assert first.writes == [INFO_REQUEST, STATUS_REQUEST, CLEAR_TRIP]
     assert second.writes == [STATUS_REQUEST]  # once a day
     assert (data.trip_distance, data.ride_seconds) == (0, 0)  # shown right away
@@ -401,7 +414,7 @@ async def test_empty_trip_needs_no_reset_but_counts_for_the_day(hass, advertisin
     replies = {STATUS_REQUEST: ZERO_TRIP_REPLY, INFO_REQUEST: INFO_REPLY, CLEAR_TRIP: CLEAR_TRIP}
     later = {STATUS_REQUEST: STATUS_REPLY, CLEAR_TRIP: CLEAR_TRIP}  # a ride later that day
     first, second = FakeBike(replies=replies), FakeBike(replies=later)
-    await _refresh_with_options(hass, first, second, daily_trip_reset=True)
+    await _refresh_with_options(hass, first, second, trip_reset="daily")
     assert CLEAR_TRIP not in first.writes
     assert CLEAR_TRIP not in second.writes  # today's ride stays on the display
 
@@ -409,7 +422,7 @@ async def test_empty_trip_needs_no_reset_but_counts_for_the_day(hass, advertisin
 async def test_failed_daily_reset_is_retried_three_times_a_day(hass, advertising):
     bikes = [FakeBike(replies={STATUS_REQUEST: STATUS_REPLY, INFO_REQUEST: INFO_REPLY}) for _ in range(4)]
     with patch("tenways_ble.client.TenwaysBike.reset_trip", side_effect=TimeoutError):
-        totals, _ = await _refresh_with_options(hass, *bikes, daily_trip_reset=True)
+        totals, _ = await _refresh_with_options(hass, *bikes, trip_reset="daily")
     assert totals.state.reset_failures == 3
     assert totals.state.trip_reset_day is None
 
@@ -431,3 +444,39 @@ async def test_options_off_send_nothing(hass, advertising):
     bike = FakeBike(replies={STATUS_REQUEST: STATUS_REPLY, INFO_REQUEST: INFO_REPLY, CLEAR_TRIP: CLEAR_TRIP})
     await _refresh_with_options(hass, bike)
     assert bike.writes == [INFO_REQUEST, STATUS_REQUEST]
+
+
+async def test_ride_mode_clears_at_switch_on_not_on_the_way_home(hass, advertising):
+    # Morning: switched on, trip unchanged since the last read -> read, then clear.
+    # Return home: trip has grown -> read only, the ride stays on the display.
+    # Next switch-on: unchanged since that read -> clear.
+    # While the bike stays visible, later polls of the same session never clear.
+    morning = FakeBike(replies={STATUS_REQUEST: _status(5, 600), INFO_REQUEST: INFO_REPLY, CLEAR_TRIP: CLEAR_TRIP})
+    riding_home = FakeBike(replies={STATUS_REQUEST: _status(3, 900), CLEAR_TRIP: CLEAR_TRIP})
+    still_home = FakeBike(replies={STATUS_REQUEST: _status(3, 900), CLEAR_TRIP: CLEAR_TRIP})
+    next_ride = FakeBike(replies={STATUS_REQUEST: _status(3, 900), CLEAR_TRIP: CLEAR_TRIP})
+    steps = iter([_reappeared, lambda c: None, _reappeared])
+    totals, _ = await _refresh_with_options(
+        hass, morning, riding_home, still_home, next_ride, trip_reset="ride", between=lambda c: next(steps)(c),
+    )
+    assert CLEAR_TRIP in morning.writes
+    assert CLEAR_TRIP not in riding_home.writes
+    assert CLEAR_TRIP not in still_home.writes
+    assert CLEAR_TRIP in next_ride.writes
+    assert totals.total_ride_s == 600 + 900  # nothing lost
+
+
+async def test_ride_mode_clears_on_a_new_day_even_if_the_trip_grew(hass, advertising):
+    from custom_components.tenways.totals import TenwaysTotals
+
+    totals = TenwaysTotals(hass, "entry")
+    await totals.async_load()
+    totals.state.last_trip_s = 100.0
+    totals.state.trip_reset_day = "2026-10-17"  # yesterday
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, totals, "Longtail Duo", trip_reset="ride")
+    bike = FakeBike(replies={STATUS_REQUEST: _status(4, 700), INFO_REQUEST: INFO_REPLY, CLEAR_TRIP: CLEAR_TRIP})
+    with patch("custom_components.tenways.coordinator.establish_connection", return_value=bike), \
+         patch("custom_components.tenways.coordinator.dt_util.now", return_value=CLOCK_MOMENT):
+        await coordinator.async_refresh()
+    await totals.async_unload()
+    assert CLEAR_TRIP in bike.writes  # switched off before HA read yesterday's ride; a new day clears
