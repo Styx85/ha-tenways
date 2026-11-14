@@ -48,9 +48,9 @@ Settings → Devices & services → TENWAYS → Configure:
 
 - **Poll interval:** 300 s by default (30–3600 s). Each poll is a short BLE connection.
 - **Ride time before HA counted:** hours ridden before the trip was first cleared, so that the total ride time and the overall average are right.
-- **Clear the trip automatically:** off, once a day, or at each switch-on (per ride). It happens right after a read, in the same connection, so it works even if you ride off at once. The read comes first, so HA never loses a ride; an empty trip is not written.
+- **Clear the trip automatically:** off, once a day, or each time the bike appears (per ride). It happens right after a read, in the same connection, so it works even if you ride off at once. The read comes first, so HA never loses a ride; an empty trip is not written.
   - *Once a day:* after the first successful read of the day.
-  - *At each switch-on:* at the first read after the bike appears, if the trip is unchanged since HA's last read (nothing ridden since: a switch-on). If it has grown, the bike is coming home from a ride: HA only reads it, the ride stays on the display, and the next switch-on clears it. If you switch off at home before HA has read the bike, the next ride is added to it on the display until the next switch-on or the next day; HA counts both correctly.
+  - *Each time the bike appears:* at the first read after every switch-on, and when the bike comes back into range (then the display shows 0 after a ride; HA has read it just before).
 - **Set the clock automatically:** in the same connection as a read, after a daylight saving change, every 90 days and when first enabled.
 
 A failed automatic write is retried on the next reads, at most three times a day.

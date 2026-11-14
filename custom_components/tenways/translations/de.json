@@ -37,7 +37,7 @@
         "data_description": {
           "ride_hours_before": "Gesamtfahrzeit = dieser Wert plus alle Trips, die HA seitdem gelesen hat. Die Fahrzeit des Rads von vor dem ersten Trip-Reset eintragen, damit der Gesamtdurchschnitt (Kilometerstand ÷ Gesamtfahrzeit) stimmt.",
           "auto_clock": "In derselben Verbindung wie ein Abruf: nach einer Zeitumstellung, alle 90 Tage und beim ersten Einschalten der Option.",
-          "trip_reset": "Direkt nach einem Abruf, in derselben Verbindung, damit es auch beim sofortigen Losfahren klappt. Erst wird gelesen, HA behält also die Fahrt; ein leerer Trip wird nicht geschrieben. „Bei jedem Einschalten“ lässt eine Fahrt auf dem Display, wenn das Rad beim Heimkommen gelesen wird, und setzt sie beim nächsten Einschalten zurück."
+          "trip_reset": "Direkt nach einem Abruf, in derselben Verbindung, damit es auch beim sofortigen Losfahren klappt. Erst wird gelesen, HA behält also jede Fahrt; ein leerer Trip wird nicht geschrieben. „Bei jedem Auftauchen“ setzt bei jedem Einschalten und beim Zurückkommen in Reichweite zurück."
         }
       }
     }
@@ -159,7 +159,7 @@
       "options": {
         "off": "Aus",
         "daily": "Einmal täglich (erster Abruf)",
-        "ride": "Bei jedem Einschalten (pro Fahrt)"
+        "ride": "Bei jedem Auftauchen (pro Fahrt)"
       }
     }
   }

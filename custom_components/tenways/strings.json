@@ -37,7 +37,7 @@
         "data_description": {
           "ride_hours_before": "Total ride time = this value plus all trips HA has read since. Enter the bike's ride time from before the trip was first cleared, so that the overall average (odometer ÷ total ride time) is right.",
           "auto_clock": "In the same connection as a read: after a daylight saving change, every 90 days, and when first enabled.",
-          "trip_reset": "Right after a read, in the same connection, so it works when you ride off at once. The read comes first, so HA keeps the ride; an empty trip is not written. \"At each switch-on\" keeps a ride on the display when the bike is read on the way home and clears it at the next switch-on."
+          "trip_reset": "Right after a read, in the same connection, so it works when you ride off at once. The read comes first, so HA keeps every ride; an empty trip is not written. “Each time the bike appears” clears it at every switch-on and when it comes back into range."
         }
       }
     }
@@ -159,7 +159,7 @@
       "options": {
         "off": "Off",
         "daily": "Once a day (first read)",
-        "ride": "At each switch-on (per ride)"
+        "ride": "Each time the bike appears (per ride)"
       }
     }
   }

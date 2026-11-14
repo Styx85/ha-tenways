@@ -401,7 +401,8 @@ def _status(trip_km: int, ride_s: int) -> bytes:
 
 async def test_daily_reset_follows_the_first_read_in_the_same_connection(hass, advertising):
     replies = {STATUS_REQUEST: STATUS_REPLY, INFO_REQUEST: INFO_REPLY, CLEAR_TRIP: CLEAR_TRIP}
-    first, second = FakeBike(replies=dict(replies)), FakeBike(replies=dict(replies))
+    first = FakeBike(replies=replies)
+    second = FakeBike(replies={STATUS_REQUEST: ZERO_TRIP_REPLY, CLEAR_TRIP: CLEAR_TRIP})  # cleared, as the bike does
     totals, (data, _) = await _refresh_with_options(hass, first, second, trip_reset="daily")
     assert first.writes == [INFO_REQUEST, STATUS_REQUEST, CLEAR_TRIP]
     assert second.writes == [STATUS_REQUEST]  # once a day
@@ -446,37 +447,18 @@ async def test_options_off_send_nothing(hass, advertising):
     assert bike.writes == [INFO_REQUEST, STATUS_REQUEST]
 
 
-async def test_ride_mode_clears_at_switch_on_not_on_the_way_home(hass, advertising):
-    # Morning: switched on, trip unchanged since the last read -> read, then clear.
-    # Return home: trip has grown -> read only, the ride stays on the display.
-    # Next switch-on: unchanged since that read -> clear.
-    # While the bike stays visible, later polls of the same session never clear.
-    morning = FakeBike(replies={STATUS_REQUEST: _status(5, 600), INFO_REQUEST: INFO_REPLY, CLEAR_TRIP: CLEAR_TRIP})
-    riding_home = FakeBike(replies={STATUS_REQUEST: _status(3, 900), CLEAR_TRIP: CLEAR_TRIP})
-    still_home = FakeBike(replies={STATUS_REQUEST: _status(3, 900), CLEAR_TRIP: CLEAR_TRIP})
-    next_ride = FakeBike(replies={STATUS_REQUEST: _status(3, 900), CLEAR_TRIP: CLEAR_TRIP})
-    steps = iter([_reappeared, lambda c: None, _reappeared])
-    totals, _ = await _refresh_with_options(
-        hass, morning, riding_home, still_home, next_ride, trip_reset="ride", between=lambda c: next(steps)(c),
+async def test_ride_mode_reads_then_clears_each_time_the_bike_appears(hass, advertising):
+    # Switch-on: read, then clear. Polls while the bike stays visible: no write.
+    # Back in range after a ride: read the ride first, then clear.
+    switch_on = FakeBike(replies={STATUS_REQUEST: _status(5, 600), INFO_REQUEST: INFO_REPLY, CLEAR_TRIP: CLEAR_TRIP})
+    staying = FakeBike(replies={STATUS_REQUEST: _status(0, 0), CLEAR_TRIP: CLEAR_TRIP})
+    back_home = FakeBike(replies={STATUS_REQUEST: _status(3, 900), CLEAR_TRIP: CLEAR_TRIP})
+    steps = iter([lambda c: None, _reappeared])
+    totals, results = await _refresh_with_options(
+        hass, switch_on, staying, back_home, trip_reset="ride", between=lambda c: next(steps)(c),
     )
-    assert CLEAR_TRIP in morning.writes
-    assert CLEAR_TRIP not in riding_home.writes
-    assert CLEAR_TRIP not in still_home.writes
-    assert CLEAR_TRIP in next_ride.writes
-    assert totals.total_ride_s == 600 + 900  # nothing lost
-
-
-async def test_ride_mode_clears_on_a_new_day_even_if_the_trip_grew(hass, advertising):
-    from custom_components.tenways.totals import TenwaysTotals
-
-    totals = TenwaysTotals(hass, "entry")
-    await totals.async_load()
-    totals.state.last_trip_s = 100.0
-    totals.state.trip_reset_day = "2026-10-17"  # yesterday
-    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, totals, "Longtail Duo", trip_reset="ride")
-    bike = FakeBike(replies={STATUS_REQUEST: _status(4, 700), INFO_REQUEST: INFO_REPLY, CLEAR_TRIP: CLEAR_TRIP})
-    with patch("custom_components.tenways.coordinator.establish_connection", return_value=bike), \
-         patch("custom_components.tenways.coordinator.dt_util.now", return_value=CLOCK_MOMENT):
-        await coordinator.async_refresh()
-    await totals.async_unload()
-    assert CLEAR_TRIP in bike.writes  # switched off before HA read yesterday's ride; a new day clears
+    assert switch_on.writes[-1] == CLEAR_TRIP
+    assert CLEAR_TRIP not in staying.writes
+    assert back_home.writes == [STATUS_REQUEST, CLEAR_TRIP]
+    assert totals.total_ride_s == 600 + 900  # every ride read before it was cleared
+    assert results[-1].trip_distance == 0

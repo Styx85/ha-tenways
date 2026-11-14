@@ -24,7 +24,7 @@ ISSUES_URL = "https://github.com/Styx85/ha-tenways/issues"
 CONF_TRIP_RESET = "trip_reset"
 TRIP_RESET_OFF = "off"
 TRIP_RESET_DAILY = "daily"  # after the first read of each day
-TRIP_RESET_RIDE = "ride"  # at each switch-on, so the display shows the current ride
+TRIP_RESET_RIDE = "ride"  # at the first read each time the bike appears (switch-on or back home)
 TRIP_RESET_MODES = (TRIP_RESET_OFF, TRIP_RESET_DAILY, TRIP_RESET_RIDE)
 # Set the clock in the same connection after a daylight saving change or every 90 days.
 CONF_AUTO_CLOCK = "auto_clock"

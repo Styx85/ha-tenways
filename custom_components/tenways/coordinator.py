@@ -166,8 +166,6 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                 read_ok = read_ok or bool(telemetry)
                 live = {key: telemetry.pop(key, None) for key in LIVE_FIELDS if key != 'rssi'}
                 self._last.update(telemetry)
-                # The trip ride time HA had seen before this read; unchanged at a switch-on.
-                trip_before = self.totals.state.last_trip_s if self.totals is not None else None
                 if telemetry and self.totals is not None:
                     self.totals.async_update(
                         telemetry.get('ride_seconds'), telemetry.get('odometer'), telemetry.get('max_speed'),
@@ -175,7 +173,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                     )
                 if telemetry:
                     # Right after the read, in the same connection: the bike may leave range soon.
-                    await self._async_automatic_writes(bike, trip_before)
+                    await self._async_automatic_writes(bike)
                 # Optional reads only when advertised as present in the GATT table.
                 for key, uuid in DEVICE_INFO_UUIDS.items():
                     if key in self._last:
@@ -233,7 +231,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         if self.totals is not None:
             self.totals.async_clock_set(moment)
 
-    async def _async_automatic_writes(self, bike: TenwaysBike, trip_before: float | None) -> None:
+    async def _async_automatic_writes(self, bike: TenwaysBike) -> None:
         """The options' clock sync and trip reset; a failure is retried on a later read."""
         totals = self.totals
         new_session, self._new_session = self._new_session, False
@@ -249,7 +247,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
             else:
                 _LOGGER.info("Set the clock of %s to %s (automatic)", self.address, now)
                 totals.async_clock_set(now)
-        if not self._trip_reset_wanted(now, new_session, trip_before):
+        if not self._trip_reset_wanted(now, new_session):
             return
         # The read above already took the trip into HA's totals. An empty trip needs no write,
         # but counts as done, so a ride later today is not cleared when it is read.
@@ -270,19 +268,13 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                 if key in self._last:
                     self._last[key] = 0
 
-    def _trip_reset_wanted(self, now: datetime, new_session: bool, trip_before: float | None) -> bool:
+    def _trip_reset_wanted(self, now: datetime, new_session: bool) -> bool:
         totals = self.totals
         assert totals is not None
         if self._trip_reset == TRIP_RESET_DAILY:
             return totals.trip_reset_due(now)
-        if self._trip_reset != TRIP_RESET_RIDE or not new_session or not totals.trip_reset_allowed(now):
-            return False
-        # First read since the bike appeared. At a switch-on nothing was ridden since the last read,
-        # so the trip is unchanged: clear it. On the way home it has grown: keep it on the display
-        # (HA has just counted it); the next switch-on clears it. A new day clears it in any case.
-        trip_now = self._last.get('ride_seconds')
-        unchanged = trip_before is None or trip_now is None or trip_now <= trip_before
-        return unchanged or totals.trip_reset_due(now)
+        # Per ride: the first read after the bike appeared (switched on, or back in range).
+        return self._trip_reset == TRIP_RESET_RIDE and new_session and totals.trip_reset_allowed(now)
 
     async def async_reset_trip(self) -> None:
         """Clear the bike's trip (distance, time, max and average speed). Needs the bike in range."""
