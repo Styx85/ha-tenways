@@ -110,6 +110,9 @@
     "button": {
       "set_clock": {
         "name": "Set clock"
+      },
+      "reset_trip": {
+        "name": "Reset trip"
       }
     }
   },
@@ -119,6 +122,9 @@
     },
     "clock_failed": {
       "message": "Could not set the bike clock: {error}"
+    },
+    "trip_reset_failed": {
+      "message": "Could not reset the trip: {error}"
     }
   }
 }

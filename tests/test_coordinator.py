@@ -296,6 +296,30 @@ async def test_set_clock_sends_the_app_frame_and_disconnects(hass, advertising):
     assert not bike.connected
 
 
+CLEAR_TRIP = bytes.fromhex("63 00 04 01 2d 01 01 63 e8 45")
+
+
+async def test_reset_trip_sends_the_app_frame_and_disconnects(hass, advertising):
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    bike = FakeBike(replies={CLEAR_TRIP: CLEAR_TRIP})
+    with patch("custom_components.tenways.coordinator.establish_connection", return_value=bike), \
+         patch.object(TenwaysCoordinator, "async_request_refresh") as refresh:
+        await coordinator.async_reset_trip()
+    assert bike.writes == [CLEAR_TRIP]
+    assert not bike.connected
+    refresh.assert_called_once()
+
+
+async def test_reset_trip_without_acknowledgement_is_reported(hass, advertising):
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    bike = FakeBike(replies={})
+    with patch("custom_components.tenways.coordinator.establish_connection", return_value=bike), \
+         patch("custom_components.tenways.coordinator.KING_METER_TIMEOUT_SECONDS", 0.05):
+        with pytest.raises(HomeAssistantError):
+            await coordinator.async_reset_trip()
+    assert not bike.connected
+
+
 async def test_set_clock_needs_the_bike_in_range(hass):
     coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
     with patch("custom_components.tenways.coordinator.bluetooth.async_last_service_info", return_value=None), \

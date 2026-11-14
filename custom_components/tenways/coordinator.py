@@ -1,4 +1,4 @@
-"""Read-only TENWAYS BLE telemetry and diagnostics."""
+"""TENWAYS BLE telemetry and diagnostics; writes only on an explicit button press."""
 from __future__ import annotations
 
 import asyncio
@@ -174,6 +174,17 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
 
     async def async_set_clock(self, moment: datetime) -> None:
         """Set the bike's clock to ``moment`` (local wall-clock fields). Needs the bike in range."""
+        await self._async_write(lambda bike: bike.set_clock(moment), "clock_failed")
+        _LOGGER.info("Set the clock of %s to %s", self.address, moment)
+
+    async def async_reset_trip(self) -> None:
+        """Clear the bike's trip (distance, time, max and average speed). Needs the bike in range."""
+        await self._async_write(lambda bike: bike.reset_trip(), "trip_reset_failed")
+        _LOGGER.info("Cleared the trip of %s", self.address)
+        await self.async_request_refresh()
+
+    async def _async_write(self, send, failed_key: str) -> None:
+        """One explicit write in its own BLE session; errors are reported on the press."""
         info = bluetooth.async_last_service_info(self.hass, self.address, connectable=True)
         device = bluetooth.async_ble_device_from_address(self.hass, self.address, connectable=True)
         visible = info is not None and time.monotonic() - info.time < ADVERTISEMENT_MAX_AGE_SECONDS
@@ -185,10 +196,10 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                 client = await establish_connection(
                     BleakClient, device, self.address, max_attempts=2, timeout=20.0,
                 )
-                await asyncio.wait_for(TenwaysBike(client).set_clock(moment), KING_METER_TIMEOUT_SECONDS)
+                await asyncio.wait_for(send(TenwaysBike(client)), KING_METER_TIMEOUT_SECONDS)
             except (TenwaysError, TenwaysProtocolError, BleakError, OSError, TimeoutError) as exc:
                 raise HomeAssistantError(
-                    translation_domain=DOMAIN, translation_key="clock_failed",
+                    translation_domain=DOMAIN, translation_key=failed_key,
                     translation_placeholders={"error": str(exc) or type(exc).__name__},
                 ) from exc
             finally:
@@ -197,7 +208,6 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                         await asyncio.wait_for(client.disconnect(), 5)
                     except Exception as exc:
                         _LOGGER.debug("TENWAYS disconnect failed: %s", exc)
-        _LOGGER.info("Set the clock of %s to %s", self.address, moment)
 
     @callback
     def _async_expire_live(self, _now: datetime) -> None:

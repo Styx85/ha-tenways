@@ -31,6 +31,7 @@ async def _setup_without_bike(hass, stale=()):
     for key in ("traction_battery", "odometer", "last_read", "speed"):
         registry.async_get_or_create("sensor", DOMAIN, f"{ADDRESS}_{key}", suggested_object_id=f"tenways_{key}", config_entry=entry)
     registry.async_get_or_create("button", DOMAIN, f"{ADDRESS}_set_clock", suggested_object_id="tenways_set_clock", config_entry=entry)
+    registry.async_get_or_create("button", DOMAIN, f"{ADDRESS}_reset_trip", suggested_object_id="tenways_reset_trip", config_entry=entry)
     registry.async_get_or_create("binary_sensor", DOMAIN, f"{ADDRESS}_light", suggested_object_id="tenways_light", config_entry=entry)
     with patch("custom_components.tenways.coordinator.bluetooth.async_last_service_info", return_value=None), \
          patch("custom_components.tenways.coordinator.bluetooth.async_ble_device_from_address", return_value=None), \
@@ -93,3 +94,15 @@ async def test_set_clock_button_passes_local_time_only_when_pressed(hass):
         await hass.services.async_call("button", "press", {"entity_id": "button.tenways_set_clock"}, blocking=True)
     set_clock.assert_awaited_once()
     assert set_clock.await_args.args[0].tzinfo is not None
+
+
+async def test_reset_trip_button_writes_only_when_pressed(hass):
+    from unittest.mock import AsyncMock
+
+    from custom_components.tenways.coordinator import TenwaysCoordinator
+
+    with patch.object(TenwaysCoordinator, "async_reset_trip", new=AsyncMock()) as reset_trip:
+        await _setup_without_bike(hass)
+        reset_trip.assert_not_called()  # nothing is sent on setup or polling
+        await hass.services.async_call("button", "press", {"entity_id": "button.tenways_reset_trip"}, blocking=True)
+    reset_trip.assert_awaited_once()
