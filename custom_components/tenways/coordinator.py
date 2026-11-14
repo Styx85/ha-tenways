@@ -21,6 +21,8 @@ from .const import (
     ADVERTISEMENT_MAX_AGE_SECONDS, DOMAIN, BATTERY_UUID, DEVICE_INFO_UUIDS,
     KING_METER_TIMEOUT_SECONDS,
 )
+from .const import ISSUES_URL
+from .models import model_profile
 from .totals import TenwaysTotals
 
 _LOGGER = logging.getLogger(__name__)
@@ -63,13 +65,16 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
 
     def __init__(
         self, hass: HomeAssistant, address: str, poll_seconds: int,
-        totals: TenwaysTotals | None = None,
+        totals: TenwaysTotals | None = None, name: str | None = None,
     ) -> None:
         super().__init__(
             hass, _LOGGER, name=f"TENWAYS {address}",
             update_interval=timedelta(seconds=poll_seconds),
         )
         self.address = address
+        # Advertised name; picks the model's profile (the app's driver). Updated from advertisements.
+        self.model_name = name
+        self._profile_logged: str | None = None
         # Values over all trips and per day; None only in tests that do not need them.
         self.totals = totals
         self._last_successful_read: datetime | None = None
@@ -82,8 +87,30 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         # One BLE session at a time: a poll and a clock sync must not share the bike.
         self._ble_lock = asyncio.Lock()
 
+    @property
+    def profile(self):
+        return model_profile(self.model_name)
+
+    def _bike(self, client: BleakClient) -> TenwaysBike:
+        profile = self.profile
+        if self._profile_logged != profile.name:
+            self._profile_logged = profile.name
+            if not profile.supported:
+                _LOGGER.warning(
+                    "%s (%s) is not supported: %s. A debug log or an HCI capture of the TENWAYS app "
+                    "could help to add it: %s", self.model_name, self.address, profile.reason, ISSUES_URL,
+                )
+            elif not profile.tested:
+                _LOGGER.warning(
+                    "%s (%s) uses the untested %s profile. Please report whether the values match the "
+                    "display, with a diagnostics download: %s", self.model_name, self.address, profile.name, ISSUES_URL,
+                )
+        return TenwaysBike(client, name=self.model_name, profile=profile)
+
     async def _async_update_data(self) -> TenwaysData:
         info = bluetooth.async_last_service_info(self.hass, self.address, connectable=True)
+        if info is not None and info.name and info.name != self.model_name and model_profile(info.name).supported:
+            self.model_name = info.name
         now = time.monotonic()
         # BluetoothServiceInfoBleak.time is monotonic seconds, NOT Unix time.
         age = max(0.0, now - info.time) if info is not None else None
@@ -120,7 +147,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                         _LOGGER.debug('Standard battery read unavailable: %s', exc)
                 try:
                     telemetry = await asyncio.wait_for(
-                        self._async_read_king_meter(TenwaysBike(client)), KING_METER_TIMEOUT_SECONDS,
+                        self._async_read_king_meter(self._bike(client)), KING_METER_TIMEOUT_SECONDS,
                     )
                 except TimeoutError:
                     _LOGGER.debug('King Meter exchange timed out (%s)', self.address)
@@ -209,7 +236,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                 client = await establish_connection(
                     BleakClient, device, self.address, max_attempts=2, timeout=20.0,
                 )
-                await asyncio.wait_for(send(TenwaysBike(client)), KING_METER_TIMEOUT_SECONDS)
+                await asyncio.wait_for(send(self._bike(client)), KING_METER_TIMEOUT_SECONDS)
             except (TenwaysError, TenwaysProtocolError, BleakError, OSError, TimeoutError) as exc:
                 raise HomeAssistantError(
                     translation_domain=DOMAIN, translation_key=failed_key,

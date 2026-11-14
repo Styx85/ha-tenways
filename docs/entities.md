@@ -19,7 +19,7 @@ Everything the integration exposes, where each value comes from, and how far it 
 - **Unverified:** power in W from field `0x23` (`power` in the app, values above 3000 ignored); 0 while parked, not yet seen while riding.
 - **Computed by HA**, because the bike only knows the current trip (see [Totals over all trips and per day](#totals-over-all-trips-and-per-day)): total ride time, average and maximum speed over all trips, ride time and distance today.
 - Disabled diagnostic sensors for the raw status fields `0x0B`, `0x11`, `0x23`, `0x4F`; `0x4F` is not interpreted.
-- Standard Bluetooth battery (`0x2A19`): **not the traction battery**; on the Longtail Duo it counts up by 1 roughly every read while the bike is on and resets to 0 when it is switched off, so it looks like a counter. Disabled diagnostic sensor.
+- Standard Bluetooth battery (`0x2A19`): **not the traction battery**; on the Longtail Duo it counts up by 1 roughly every read while the bike is on and resets to 0 when it is switched off, so it looks like a counter. Disabled diagnostic sensor. Named **Standard BLE battery field (counter)** since 0.12.0 (entity ID unchanged). Whether it counts reads or time is open: if it rises about five times as fast per minute at a 60 s poll interval as at 300 s, it counts reads.
 - Last successful read (shows how old the kept values are), BLE signal, last advertisement and optional Device Information characteristics.
 - Bluetooth recently seen (diagnostic binary sensor): whether the bike advertised within the last 120 s.
 

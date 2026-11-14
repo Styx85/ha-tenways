@@ -118,3 +118,30 @@ async def test_non_connectable_discovery_is_ignored(hass):
         DOMAIN, context={"source": SOURCE_BLUETOOTH}, data=info,
     )
     assert result["type"] is FlowResultType.ABORT
+
+
+async def test_other_king_meter_models_are_offered(hass):
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_BLUETOOTH}, data=_advertisement("CGO800 Plus"),
+    )
+    assert result["step_id"] == "bluetooth_confirm"
+
+
+async def test_unsupported_model_is_explained(hass):
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_BLUETOOTH}, data=_advertisement("AGO AIR", [TENWAYS_SERVICE_UUID]),
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "unsupported_model"
+    assert "encrypted" in result["description_placeholders"]["reason"]
+
+
+async def test_unsupported_model_is_not_listed(hass):
+    with _visible(_advertisement("AGOX_D", [TENWAYS_SERVICE_UUID])):
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    assert result["type"] is FlowResultType.FORM
+    assert "data_schema" in result
+    schema_keys = {str(k) for k in result["data_schema"].schema}
+    assert schema_keys == {CONF_ADDRESS}
+    # Nothing to choose from: a plain text field, not a dropdown of bikes.
+    assert result["data_schema"].schema[next(iter(result["data_schema"].schema))] is str

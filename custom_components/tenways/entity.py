@@ -23,4 +23,5 @@ class TenwaysEntity(CoordinatorEntity[TenwaysCoordinator]):
             connections={(CONNECTION_BLUETOOTH, address)},
             name=entry.title,
             manufacturer="TENWAYS",
+            model=coordinator.profile.name,
         )

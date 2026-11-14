@@ -25,5 +25,11 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: Tenways
     return {
         "entry": async_redact_data(entry.as_dict(), TO_REDACT),
         "last_update_success": coordinator.last_update_success,
+        "model": {
+            "name": coordinator.model_name,
+            "profile": coordinator.profile.name,
+            "tested": coordinator.profile.tested,
+            "supported": coordinator.profile.supported,
+        },
         "data": async_redact_data(data, TO_REDACT),
     }

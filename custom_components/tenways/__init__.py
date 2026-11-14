@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
+from homeassistant.const import CONF_NAME, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
@@ -35,6 +35,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TenwaysConfigEntry) -> b
     entry.async_on_unload(totals.async_track_midnight())
     coordinator = TenwaysCoordinator(
         hass, entry.data[CONF_ADDRESS], entry.options.get(CONF_POLL_SECONDS, POLL_SECONDS), totals,
+        entry.data.get(CONF_NAME) or entry.title,
     )
     entry.runtime_data = coordinator
     # Startup should not fail while the bicycle is switched off or away.

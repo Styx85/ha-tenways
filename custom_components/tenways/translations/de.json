@@ -18,7 +18,8 @@
     },
     "abort": {
       "already_configured": "Dieses Fahrrad ist bereits eingerichtet.",
-      "not_supported": "Bluetooth-Gerät nicht unterstützt."
+      "not_supported": "Bluetooth-Gerät nicht unterstützt.",
+      "unsupported_model": "{name} wird noch nicht unterstützt ({reason}). Ein Debug-Log oder ein HCI-Mitschnitt der TENWAYS-App könnte helfen, es aufzunehmen; bitte ein Issue eröffnen."
     },
     "flow_title": "{name}"
   },
@@ -40,7 +41,7 @@
   "entity": {
     "sensor": {
       "ble_battery": {
-        "name": "BLE-Akkustand"
+        "name": "BLE-Batteriefeld (Zähler)"
       },
       "traction_battery": {
         "name": "Antriebsakku"

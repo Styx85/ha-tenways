@@ -2,7 +2,7 @@
 
 # TENWAYS BLE for Home Assistant — experimental
 
-Unofficial integration for TENWAYS e-bikes over Bluetooth, built on the [`tenways-ble`](https://github.com/Styx85/tenways-ble) library. It reads the bike through Home Assistant's own Bluetooth stack: a local adapter or an ESPHome Bluetooth proxy with active connections. No cloud, no extra hardware. **Tested on a Longtail Duo** with Home Assistant 2026.11.
+Unofficial integration for TENWAYS e-bikes over Bluetooth, built on the [`tenways-ble`](https://github.com/Styx85/tenways-ble) library. It reads the bike through Home Assistant's own Bluetooth stack: a local adapter or an ESPHome Bluetooth proxy with active connections. No cloud, no extra hardware. **Tested on a Longtail Duo** with Home Assistant 2026.11; other King Meter models are supported untested, see [Supported bikes](#supported-bikes).
 
 ## Features
 
@@ -16,16 +16,23 @@ No unlock, light, firmware or configuration commands. Details on every entity, w
 
 ## Supported bikes
 
-| Bike (advertised name) | Status |
-|---|---|
-| Longtail Duo | **tested**, all features |
-| CGO009_D | likely: the TENWAYS app uses the same driver as for the Longtail Duo, untested |
-| CGO009, AGO, AGOX, AGOT, CARGO | possibly: same King Meter protocol in the app, untested |
-| CGO800 | not yet: King Meter with the checksum in the other byte order, which `tenways-ble` neither sends nor accepts |
-| AGO AIR, Wayfarer_B | no: encrypted session |
-| CGO600, CGO600_D | no: different protocol (Nordic UART, `0x57` frames) |
+The integration picks a profile from the name the bike advertises, the way the TENWAYS app picks its driver (app versions 2.18.0 and 2.19.0, analysed statically, see [tenways-ble](https://github.com/Styx85/tenways-ble/blob/main/docs/RESEARCH.md#driver-per-model)). Every King Meter model gets everything the Longtail Duo has: all sensors, the totals, **Set clock** and **Reset trip**.
 
-HA discovers a bike that advertises as `Longtail Duo` or with the King Meter service; add any other by its Bluetooth address. How the app picks a driver per model: [docs/models.md](https://github.com/Styx85/ha-tenways/blob/main/docs/models.md). Tried another model? Please open an issue with a diagnostics download.
+| Advertised name | App driver | Status | Notes |
+|---|---|---|---|
+| `Longtail Duo` | long tail duo/CGO009_D | ✅ **tested** | all features confirmed on the bike |
+| `CGO009_D` | long tail duo/CGO009_D | 🧪 untested | same requests as the Longtail Duo |
+| `CGO009` (not `CGO009L`) | 009 | 🧪 untested | also reports an assist level (`0x12`), not yet a sensor |
+| `CGO800`, `CGO800 Plus`, `CGO800S` | 800s | 🧪 untested | checksum low byte first, odometer in whole km; some CGO800 Plus displays need the encrypted session and then do not answer |
+| `AGO`, `AGOX`, `AGOT`, `CARGO`, `CGO009L` | ago (the app's default) | 🧪 untested | |
+| `AGO AIR`, `Wayfarer_B`, `AGOX_D`, `AGOT_D`, `CGO COMPACT_D`, `AGO AIR-BELT_D` | AGO AIR | ⛔ not supported | encrypted King Meter session |
+| `CGO600_D` | CGO600_D | ⛔ not supported | `0x57` frames, not King Meter |
+| `CGO600`, `CGO600 Pro`, `CGO600 PLUS` | Nordic UART | ⛔ not supported | not King Meter |
+| `DM…` | DM | ⛔ not supported | separate driver, not analysed |
+
+- **Untested** means the requests follow the app, but no such bike has answered yet. The integration logs a warning with a link here. Please open an issue with a diagnostics download (Settings → Devices & services → TENWAYS → ⋮ → Download diagnostics) and say which values match the display.
+- **Not supported** models are not offered; adding one explains why. With a debug log, or an HCI capture of the TENWAYS app with that bike (never publish it raw; it contains other devices' traffic), they could be added. Until then, [tenways-bridge](https://github.com/stein155/tenways-bridge) (ESPHome firmware for an ESP32) has profiles for CGO600, CGO800 and the encrypted displays.
+- HA discovers a bike that advertises one of the names above or the King Meter service (`43480001-…`). Otherwise add **TENWAYS BLE** by hand with the bike's Bluetooth address; an unknown name then uses the Longtail Duo's requests.
 
 ## Installation
 
@@ -56,7 +63,7 @@ Settings → Devices & services → TENWAYS → Configure:
 
 ## Documentation
 
-- [Entities](https://github.com/Styx85/ha-tenways/blob/main/docs/entities.md) · [Automations and dashboards](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md) · [Supported models](https://github.com/Styx85/ha-tenways/blob/main/docs/models.md) · [How it works, limitations and troubleshooting](https://github.com/Styx85/ha-tenways/blob/main/docs/how-it-works.md)
+- [Entities](https://github.com/Styx85/ha-tenways/blob/main/docs/entities.md) · [Automations and dashboards](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md) · [How it works, limitations and troubleshooting](https://github.com/Styx85/ha-tenways/blob/main/docs/how-it-works.md)
 - Protocol, test vectors and research notes: [tenways-ble](https://github.com/Styx85/tenways-ble)
 
 ## Acknowledgements / Credits

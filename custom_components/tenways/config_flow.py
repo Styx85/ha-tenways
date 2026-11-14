@@ -14,8 +14,9 @@ from homeassistant.helpers.selector import (
 )
 from tenways_ble.const import TENWAYS_SERVICE_UUID
 
+from .models import model_profile
 from .const import (
-    CONF_ADDRESS, CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE, DOMAIN, MAX_POLL_SECONDS, MIN_POLL_SECONDS, NAME_PREFIX,
+    CONF_ADDRESS, KING_METER_NAME_PREFIXES, CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE, DOMAIN, MAX_POLL_SECONDS, MIN_POLL_SECONDS, NAME_PREFIX,
     POLL_SECONDS,
 )
 
@@ -25,14 +26,21 @@ def is_tenways_name(name: str | None) -> bool:
 
 
 def has_telemetry(info: bluetooth.BluetoothServiceInfoBleak) -> bool:
-    """Only the endpoint with the King Meter service delivers bike data.
+    """Only an endpoint with the King Meter service delivers bike data.
 
-    The second endpoint (Tenways-ble-*) is not offered automatically; it can
+    Matched by a King Meter model name or the advertised service. The Longtail
+    Duo's second endpoint (Tenways-ble-*) is not offered automatically; it can
     still be added by hand for diagnostics.
     """
-    return bool(info.name and info.name.lower().startswith("longtail duo")) or (
+    return bool(info.name and info.name.startswith(KING_METER_NAME_PREFIXES)) or (
         TENWAYS_SERVICE_UUID in (info.service_uuids or [])
     )
+
+
+def unsupported_reason(info: bluetooth.BluetoothServiceInfoBleak) -> str | None:
+    """Why a discovered model is not supported (e.g. AGO AIR, encrypted), or None."""
+    profile = model_profile(info.name)
+    return None if profile.supported else profile.reason
 
 MAC_PATTERN = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 
@@ -54,6 +62,11 @@ class TenwaysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Start from a Bluetooth advertisement."""
         if not discovery_info.connectable or not has_telemetry(discovery_info):
             return self.async_abort(reason="not_supported")
+        if reason := unsupported_reason(discovery_info):
+            return self.async_abort(
+                reason="unsupported_model",
+                description_placeholders={"name": discovery_info.name or "", "reason": reason},
+            )
         address = discovery_info.address.upper()
         await self.async_set_unique_id(address)
         self._abort_if_unique_id_configured()
@@ -77,7 +90,7 @@ class TenwaysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         found = {
             info.address.upper(): info.name or f"TENWAYS {info.address[-5:].upper()}"
             for info in bluetooth.async_discovered_service_info(self.hass, connectable=True)
-            if has_telemetry(info) and info.address.upper() not in configured
+            if has_telemetry(info) and not unsupported_reason(info) and info.address.upper() not in configured
         }
         if user_input is not None:
             address = user_input[CONF_ADDRESS].strip().upper()
