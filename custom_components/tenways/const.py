@@ -17,3 +17,6 @@ ADVERTISEMENT_MAX_AGE_SECONDS = 120
 KING_METER_TIMEOUT_SECONDS = 20  # whole King Meter exchange; the library's own timeout does not cover a stalled write
 # Ride time before HA started counting (hours), e.g. from before the trip was first cleared.
 CONF_RIDE_HOURS_BEFORE = "ride_hours_before"
+# Advertised name prefixes of the King Meter models tenways-ble has a profile for.
+KING_METER_NAME_PREFIXES = ("Longtail Duo", "CGO009", "CGO800", "AGO", "CARGO")
+ISSUES_URL = "https://github.com/Styx85/ha-tenways/issues"

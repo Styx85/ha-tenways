@@ -18,7 +18,8 @@
     },
     "abort": {
       "already_configured": "This bicycle is already configured.",
-      "not_supported": "Unsupported Bluetooth device."
+      "not_supported": "Unsupported Bluetooth device.",
+      "unsupported_model": "{name} is not supported yet ({reason}). A debug log or an HCI capture of the TENWAYS app could help to add it; please open an issue."
     },
     "flow_title": "{name}"
   },
@@ -40,7 +41,7 @@
   "entity": {
     "sensor": {
       "ble_battery": {
-        "name": "BLE battery level"
+        "name": "Standard BLE battery field (counter)"
       },
       "traction_battery": {
         "name": "Traction battery"

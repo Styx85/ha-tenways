@@ -65,7 +65,7 @@ class FakeBike(BleakClient):
 @pytest.fixture
 def advertising():
     # Do not patch time.monotonic: the event loop clock depends on it.
-    info = SimpleNamespace(time=time.monotonic(), rssi=-60)
+    info = SimpleNamespace(time=time.monotonic(), rssi=-60, name="Longtail Duo")
     with patch("custom_components.tenways.coordinator.bluetooth.async_last_service_info", return_value=info), \
          patch("custom_components.tenways.coordinator.bluetooth.async_ble_device_from_address", return_value=object()):
         yield

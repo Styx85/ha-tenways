@@ -1,205 +1,70 @@
-<p align="center"><img src="custom_components/tenways/brand/icon@2x.png" alt="" width="160"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Styx85/ha-tenways/main/custom_components/tenways/brand/icon@2x.png" alt="" width="160"></p>
 
 # TENWAYS BLE for Home Assistant — experimental
-Unofficial HACS custom integration. The King Meter BLE protocol of the Longtail Duo is implemented in the [`tenways-ble`](https://github.com/Styx85/tenways-ble) library and verified byte-for-byte against an Android Bluetooth HCI capture of the official TENWAYS app. **Tested live on a Longtail Duo with Home Assistant 2026.11:** battery, odometer, trip, ride time, light, remaining range and setting the clock agree with the bike's display. Current speed and power have not yet been checked while riding.
+
+Unofficial integration for TENWAYS e-bikes over Bluetooth, built on the [`tenways-ble`](https://github.com/Styx85/tenways-ble) library. It reads the bike through Home Assistant's own Bluetooth stack: a local adapter or an ESPHome Bluetooth proxy with active connections. No cloud, no extra hardware. **Tested on a Longtail Duo** with Home Assistant 2026.11; other King Meter models may work (untested), see [Supported bikes](#supported-bikes).
+
+## Features
+
+- **Battery and ride data:** traction battery, odometer, trip distance, ride time, maximum and average speed, light, remaining range.
+- **Totals HA keeps for you:** total ride time, average and maximum speed over all trips, ride time and distance today. They keep counting when the trip is cleared, are stored per bike and appear in the long-term statistics.
+- **Buttons:** **Set clock** (the bike has no daylight saving) and **Reset trip**, each sending the TENWAYS app's own write, only when pressed; plus a disabled one that resets HA's overall maximum.
+- Keeps the last values while the bike is off, also across restarts; polls immediately when the bike is switched on.
+- Diagnostics download with the address and serial number redacted.
+
+No unlock, light, firmware or configuration commands. Details on every entity, where its value comes from and how far it is confirmed: [docs/entities.md](https://github.com/Styx85/ha-tenways/blob/main/docs/entities.md).
+
+## Supported bikes
+
+The integration picks a profile from the name the bike advertises, the way the TENWAYS app picks its driver (app versions 2.18.0 and 2.19.0, analysed statically, see [tenways-ble](https://github.com/Styx85/tenways-ble/blob/main/docs/RESEARCH.md#driver-per-model)). Every King Meter model gets everything the Longtail Duo has (all sensors, the totals, **Set clock** and **Reset trip**), untested except on the Duo. The app itself sends the clock only to AGOX, AGOT, CARGO and the Longtail Duo, and has clearing the trip built into the AGO base and the CGO800 driver.
+
+| Advertised name | App driver | Status | Notes |
+|---|---|---|---|
+| `Longtail Duo` | long tail duo/CGO009_D | ✅ **tested** | all features confirmed on the bike |
+| `CGO009_D` | long tail duo/CGO009_D | 🧪 untested | same requests as the Longtail Duo; the app sends it no clock |
+| `CGO009` (not `CGO009L`) | 009 | 🧪 untested | also reports an assist level (`0x12`), not yet a sensor; the app sends it no clock |
+| `CGO800`, `CGO800 Plus`, `CGO800S` | 800s | 🧪 untested | checksum low byte first, odometer in whole km; some CGO800 Plus displays need the encrypted session and then do not answer; the app sends it no clock |
+| `AGO`, `AGOX`, `AGOT`, `CARGO`, `CGO009L` | ago (the app's default) | 🧪 untested | the app sends the clock to AGOX, AGOT and CARGO only |
+| `AGO AIR`, `Wayfarer_B`, `AGOX_D`, `AGOT_D`, `CGO COMPACT_D`, `AGO AIR-BELT_D` | AGO AIR | ⛔ not supported | encrypted King Meter session |
+| `CGO600_D` | CGO600_D | ⛔ not supported | `0x57` frames, not King Meter |
+| `CGO600`, `CGO600 Pro`, `CGO600 PLUS` | Nordic UART | ⛔ not supported | not King Meter |
+| `DM…` | DM | ⛔ not supported | separate driver, not analysed |
+
+- **Untested** means the requests follow the app, but no such bike has answered yet. The integration logs a warning with a link here. Please open an issue with a diagnostics download (Settings → Devices & services → TENWAYS → ⋮ → Download diagnostics) and say which values match the display.
+- **Not supported** models are not offered; adding one by its address while it advertises explains why, and an entry that sees such a name logs a warning. With a debug log, or an HCI capture of the TENWAYS app with that bike (never publish it raw; it contains other devices' traffic), they could be added. Until then, [tenways-bridge](https://github.com/stein155/tenways-bridge) (ESPHome firmware for an ESP32) has profiles for CGO600, CGO800 and the encrypted displays.
+- HA discovers a bike that advertises a name starting with `Longtail Duo`, `CGO009`, `CGO800`, `AGO` or `CARGO`, or the King Meter service (`43480001-…`). Otherwise add **TENWAYS BLE** by hand with the bike's Bluetooth address; an unknown name then uses the Longtail Duo's requests.
 
 ## Installation
 
-Add this repository in HACS as a custom **Integration** repository. Install and restart Home Assistant. In Settings → Devices & services, add **TENWAYS BLE** and select the device advertised as **Longtail Duo**. Requires an HA Bluetooth adapter or an active-connection-capable ESPHome proxy within range. The companion TENWAYS app may block a concurrent BLE connection.
+1. HACS → ⋮ → Custom repositories → add `https://github.com/Styx85/ha-tenways` as **Integration**.
+2. Install **TENWAYS BLE** and restart Home Assistant.
+3. Switch the bike on. Settings → Devices & services: HA offers the bike (advertised as **Longtail Duo**); confirm it. Otherwise add **TENWAYS BLE** and pick it or type its Bluetooth address.
 
-The bike advertises two endpoints. Only **Longtail Duo** (King Meter service) delivers bike data; HA offers it automatically and asks before adding it. The second endpoint `Tenways-ble-*` shows no useful values and is no longer offered; an existing entry for it can be deleted and stays deleted. It can still be added by hand for diagnostics.
+Close the TENWAYS app: the bike accepts one connection at a time.
 
-## Exposed sensors
+## Options
 
-- Traction battery (%) from proprietary status field `0x0F`; 48 % in HA with 3 of 5 bars on the display.
-- Odometer (km, field `0x0C`), trip distance (km, field `0x09`), maximum and average ride speed (km/h), accumulated ride time (shown in hours). Odometer and trip match the display; ride time and average speed agree with the distance.
-  On the Longtail Duo these are lifetime counters: the trip values equal the odometer and keep counting until the trip is cleared, on the display or with the **Reset trip** button. Odometer, trip distance and ride time are `total_increasing`, so HA's statistics give distance and riding hours per day, week or month.
-- Current speed from field `0x06` (disabled by default; read 0 while parked, not yet confirmed while riding).
-- Firmware (`2.20.16` observed; the app shows `1.4.0` elsewhere, so this may be another component) and serial number, read once per HA start.
-- Light on/off (binary sensor) from field `0x11` (0 = off); follows the headlight, also with automatic light.
-- Remaining range from field `0x0B` (`remainingRange` in the TENWAYS app). It depends on the assist level and falls in proportion to the battery, and is not available at level 0, where the app also shows none. Neither the display nor the app shows it as a number and the unit is not stated; km is probable.
+Settings → Devices & services → TENWAYS → Configure:
 
-  | Assist level | 1 | 2 | 3 | 4 | 5 |
-  |---|---|---|---|---|---|
-  | at 68 % | 60 | 54 | 50 | 45 | 43 |
-  | at 48 % | 43 | 38 | 35 | 32 | 31 |
-- **Unverified:** power in W from field `0x23` (`power` in the app, values above 3000 ignored); 0 while parked, not yet seen while riding.
-- **Computed by HA**, because the bike only knows the current trip (see [Totals over all trips and per day](#totals-over-all-trips-and-per-day)): total ride time, average and maximum speed over all trips, ride time and distance today.
-- Disabled diagnostic sensors for the raw status fields `0x0B`, `0x11`, `0x23`, `0x4F`; `0x4F` is not interpreted.
-- Standard Bluetooth battery (`0x2A19`): **not the traction battery**; on the Longtail Duo it counts up by 1 roughly every read while the bike is on and resets to 0 when it is switched off, so it looks like a counter. Disabled diagnostic sensor.
-- Last successful read (shows how old the kept values are), BLE signal, last advertisement and optional Device Information characteristics.
+- **Poll interval:** 300 s by default (30–3600 s). Each poll is a short BLE connection.
+- **Ride time before HA counted:** hours ridden before the trip was first cleared, so that the total ride time and the overall average are right.
 
-No unlock, light, power, firmware, configuration or pairing commands are implemented. The two recorded read requests (device info, 4 keys; status, 11 keys) are sent via the `4348…0002` write characteristic on every poll; replies arrive through `4348…0003` notify, are reassembled if fragmented and must pass length and CRC-16/MODBUS checks. The only other things ever sent are the two writes the TENWAYS app also makes, each only when you press its button: the clock sync (**Set clock**) and clearing the trip (**Reset trip**). No spontaneous notifications were observed without a request.
+## Automation hints
+
+- **Set the clock after a daylight saving change** or every 90 days, at the first successful read after it: [example](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md#example-set-the-clock-automatically).
+- **A fresh trip every day** on the display, cleared after the first successful read of the day: [example](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md#example-a-fresh-trip-every-day).
+- Distance per week as a statistics graph, and a ride log in a calendar: [docs/automations.md](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md#distance-per-period-and-ride-log).
 
 ## Limitations
 
-- Sensor values should be considered experimental until confirmed live.
-- Firmware changes may require updating the command/parser.
-- The proprietary poll runs on any configured device exposing the King Meter service; other TENWAYS models are untested. Poll interval: five minutes by default, adjustable in the integration options (30–3600 s). Each poll opens a short BLE connection; the TENWAYS app cannot connect at the same time.
-- Bluetooth proxies must support active GATT connections. At a weak signal (around −85 dBm) some reads time out; the values from the last good read stay.
-- HA only connects while the bike advertises (seen within the last 120 s). The bike stops advertising when it is switched off, so HA only reads it while it is on. When it reappears, HA polls immediately instead of waiting for the next interval. While HA is connected, the display shows a Bluetooth symbol.
-- While the bike is off, out of range or a read fails, every sensor keeps its last read value, also across HA restarts; "Last successful read" says when it was read. Only current speed, light, remaining range, power and signal strength become unavailable.
-- Live values (current speed, light, remaining range, power) lapse after two minutes without an advertisement instead of waiting for the next poll. "Last successful read" only moves when a valid reply arrived.
-- The integration offers a diagnostics download (Bluetooth address and serial number redacted); attach it to bug reports.
-- For bugs, enable debug logs for `custom_components.tenways` and submit a redacted excerpt. **Never publish a raw phone HCI log**; it may contain other devices' traffic and identifiers.
+- HA only reads the bike while it is switched on and in Bluetooth range; a ride counts when the bike is next seen at home.
+- Current speed and power have not yet been checked while riding.
+- More on polling, kept values, Bluetooth proxies and bug reports: [docs/how-it-works.md](https://github.com/Styx85/ha-tenways/blob/main/docs/how-it-works.md).
 
-## Setting the bike's clock
+## Documentation
 
-The bike has no daylight saving and keeps showing summer time until it is set. The **Set clock** button (a configuration entity of the bike device) sends Home Assistant's local time to the bike, the same write the TENWAYS app makes. It sends nothing on its own; press it with the bike switched on and in range of an adapter or proxy, with the TENWAYS app closed. Press it again after each time change. Confirmed on a Longtail Duo: after a press the display changed from summer time to the correct local time to the minute; the assist level and everything else stay as they are.
-
-### Example: set the clock automatically
-
-The bike is only reachable while it is switched on, so a fixed time does not work. This automation runs after each successful read instead and presses **Set clock** when the clock was last set before a daylight saving change, or more than 90 days ago. The time of the last *successful* press is kept in a helper, because the button records every press, failed ones included; a failed press is tried again on a later read, at most once an hour. Running in Home Assistant since November 2026.
-
-Helper (`configuration.yaml`, or create a Date and time helper in the UI):
-
-```yaml
-input_datetime:
-  tenways_clock_last_set:
-    name: TENWAYS clock last set
-    has_date: true
-    has_time: true
-```
-
-Automation (adjust the entity IDs to yours under Settings → Entities):
-
-```yaml
-- id: tenways_set_clock
-  alias: TENWAYS set clock (time change / every 90 days)
-  triggers:
-    - trigger: state
-      entity_id: sensor.longtail_duo_last_successful_read
-      # ignore reloads, where the restored value comes back from unavailable
-      not_from: [unavailable, unknown]
-      not_to: [unavailable, unknown]
-  conditions:
-    # at most one attempt an hour if setting the clock keeps failing
-    - condition: template
-      value_template: >-
-        {{ this.attributes.last_triggered is none
-           or now() - this.attributes.last_triggered > timedelta(hours=1) }}
-    - condition: template
-      value_template: >-
-        {% set ts = state_attr('input_datetime.tenways_clock_last_set', 'timestamp') %}
-        {% if ts is none %}true{% else %}
-        {% set last = as_local(as_datetime(ts)) %}
-        {{ last.utcoffset() != now().utcoffset() or now() - last > timedelta(days=90) }}
-        {% endif %}
-  actions:
-    - delay: "00:00:05"
-    # raises an error if the bike does not acknowledge; then the steps below are skipped
-    - action: button.press
-      target:
-        entity_id: button.longtail_duo_set_clock
-    - action: input_datetime.set_datetime
-      target:
-        entity_id: input_datetime.tenways_clock_last_set
-      data:
-        timestamp: "{{ now().timestamp() }}"
-  mode: single
-  max_exceeded: silent
-```
-
-A new helper starts at 1970, so the first read after setting this up sets the clock once.
-
-## Resetting the trip
-
-The **Reset trip** button (a configuration entity of the bike device) clears the trip like the display's "Clear trip" (hold [i], broom icon): trip distance, ride time, maximum and average speed go to 0, and so do the display's "CO₂ saved" and "trees saved", which it derives from the trip. The odometer stays. It is the TENWAYS app's own write; the app has it for the Longtail Duo but does not show it. Nothing is sent on its own; press it with the bike on and in range. Confirmed on a Longtail Duo: the bike acknowledges and the display shows 0.
-
-HA's statistics are not affected: trip distance and ride time are `total_increasing`, so a reset starts a new cycle and the distance per day, week or month keeps counting.
-
-### Example: a fresh trip every day
-
-Clears the trip after the first successful read of each day, so the display shows today's ride. Yesterday's trip distance, ride time, average and maximum speed are lost on the bike; HA keeps their history and its [totals](#totals-over-all-trips-and-per-day) keep counting. As with the clock example, the time of the last *successful* reset is kept in a helper, because the button records failed presses too; a failed press is tried again on a later read, at most once an hour.
-
-```yaml
-input_datetime:
-  tenways_trip_last_reset:
-    name: TENWAYS trip last reset
-    has_date: true
-    has_time: true
-```
-
-```yaml
-- id: tenways_daily_trip_reset
-  alias: TENWAYS reset trip once a day
-  triggers:
-    - trigger: state
-      entity_id: sensor.longtail_duo_last_successful_read
-      not_from: [unavailable, unknown]
-      not_to: [unavailable, unknown]
-  conditions:
-    - condition: template
-      value_template: >-
-        {{ this.attributes.last_triggered is none
-           or now() - this.attributes.last_triggered > timedelta(hours=1) }}
-    - condition: template
-      value_template: >-
-        {% set ts = state_attr('input_datetime.tenways_trip_last_reset', 'timestamp') %}
-        {{ ts is none or as_local(as_datetime(ts)).date() < now().date() }}
-  actions:
-    - delay: "00:00:05"
-    # raises an error if the bike does not acknowledge; then the step below is skipped
-    - action: button.press
-      target:
-        entity_id: button.longtail_duo_reset_trip
-    - action: input_datetime.set_datetime
-      target:
-        entity_id: input_datetime.tenways_trip_last_reset
-      data:
-        timestamp: "{{ now().timestamp() }}"
-  mode: single
-  max_exceeded: silent
-```
-
-## Totals over all trips and per day
-
-Once the trip is cleared, the bike forgets its ride time, maximum and average. The integration therefore keeps its own totals from every successful read, stored per bike and kept across restarts:
-
-| Sensor | How it is computed |
-|---|---|
-| Total ride time | the option *Ride time before HA counted* plus every increase of the trip's ride time; a lower value means the trip was cleared and counts again from 0 |
-| Average speed overall | odometer ÷ total ride time |
-| Maximum speed overall | highest trip maximum read; values above 75 km/h are ignored, as in the TENWAYS app. The disabled **Reset overall maximum speed** button sets it to 0 (sends nothing to the bike); the current trip's maximum then only counts once it is exceeded or a new trip starts |
-| Ride time today, Distance today | increase of the trip's ride time and of the odometer since local midnight |
-
-On the first read the current trip counts as ridden. If the trip was cleared before you installed this version, enter the ride time from before that reset in the options (Settings → Devices & services → TENWAYS → Configure), in hours, so that the overall average is right. Changing it later shows up in HA's long-term statistics of the total ride time as a one-off jump.
-
-A drop of the ride time only counts as a cleared trip if the trip distance dropped too; otherwise the reading is ignored, so a glitch cannot count the trip twice.
-
-HA only sees changes when it reads the bike: a ride after the last read of the evening counts for the day of the next read. Riding while the trip is cleared on the display and reading only afterwards also undercounts if the new trip has grown beyond the old one by then; with the **Reset trip** button HA knows about the reset.
-
-## Distance per period and ride log
-
-The **Odometer** is a `total_increasing` sensor, so Home Assistant keeps long-term statistics for it. A statistics graph shows the distance per day, week or month:
-
-```yaml
-type: statistics-graph
-entities: [sensor.longtail_duo_odometer]
-stat_types: [change]
-period: week
-chart_type: bar
-```
-
-Adjust the entity ID to yours. HA only sees the bike while it is in Bluetooth range, so a ride is counted when the bike is next seen at home, not while it is out.
-
-For a **ride log in a calendar** (start, end, distance, duration, average speed, battery use) there is a ready-made blueprint in [stein155/tenways-bridge](https://github.com/stein155/tenways-bridge/blob/main/homeassistant/blueprints/automation/tenways_rides.yaml) (MIT). It works from the odometer and takes its inputs as entity selectors by device class, not by name. Pick this integration's **Odometer**, **Ride duration** and **Traction battery** sensors, a calendar (a local calendar works) and a text helper. We have not tried it with this integration yet; please report how it goes.
-
-## Related projects
-
-- **[tenways-bridge](https://github.com/stein155/tenways-bridge)** is an ESPHome firmware for an ESP32 that sits where the bike is parked, connects to the bike by itself and reports to Home Assistant. It supports more display types (Nordic UART and King Meter, including an encrypted session) and can switch the light. It lists the Longtail Duo as experimental and builds on our protocol notes. Choose it if you want a dedicated device and do not mind its firmware.
-- **This integration** uses Home Assistant's own Bluetooth stack, so a standard ESPHome Bluetooth proxy with active connections is enough, and it only reads, except for the clock sync and clearing the trip, each sent only when its button is pressed (by you or an automation); there is no unlock, light or configuration command.
-
-Both are unofficial and not affiliated with TENWAYS.
-
-## Development
-
-```bash
-pip install -r requirements_test.txt
-pytest
-```
-
-Protocol details, test vectors and research notes live in [`tenways-ble`](https://github.com/Styx85/tenways-ble).
+- [Entities](https://github.com/Styx85/ha-tenways/blob/main/docs/entities.md) · [Automations and dashboards](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md) · [How it works, limitations and troubleshooting](https://github.com/Styx85/ha-tenways/blob/main/docs/how-it-works.md)
+- Protocol, test vectors and research notes: [tenways-ble](https://github.com/Styx85/tenways-ble)
 
 ## Acknowledgements / Credits
 
@@ -208,3 +73,5 @@ Based on and inspired by [stein155/cgo600-bridge](https://github.com/stein155/cg
 Many thanks to the original author and contributors. That project has since become [tenways-bridge](https://github.com/stein155/tenways-bridge), whose protocol notes agree with our field names (both derive from the TENWAYS app).
 
 The Longtail Duo implementation was developed using independently captured Bluetooth HCI traffic from the official TENWAYS app. It uses the King Meter BLE transport rather than the Nordic UART Service used by the CGO600 bridge.
+
+Unofficial; not affiliated with TENWAYS.
