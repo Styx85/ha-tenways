@@ -4,11 +4,11 @@ Back to the [README](../README.md).
 
 ## Status and verification
 
-Unofficial HACS custom integration. The King Meter BLE protocol of the Longtail Duo is implemented in the [`tenways-ble`](https://github.com/Styx85/tenways-ble) library and verified byte-for-byte against an Android Bluetooth HCI capture of the official TENWAYS app. **Tested live on a Longtail Duo with Home Assistant 2026.11:** battery, odometer, trip, ride time, light, remaining range and setting the clock agree with the bike's display. Current speed and power have not yet been checked while riding.
+Unofficial HACS custom integration. The King Meter BLE protocol of the Longtail Duo is implemented in the [`tenways-ble`](https://github.com/Styx85/tenways-ble) library and verified byte-for-byte against an Android Bluetooth HCI capture of the official TENWAYS app. **Tested live on a Longtail Duo with Home Assistant 2026.11:** battery, odometer, trip, ride time, light, remaining range and setting the clock agree with the bike's display; clearing the trip was confirmed on the bike too. Current speed and power have not yet been checked while riding.
 
 ## Connection
 
-Add this repository in HACS as a custom **Integration** repository. Install and restart Home Assistant. In Settings → Devices & services, add **TENWAYS BLE** and select the device advertised as **Longtail Duo**. Requires an HA Bluetooth adapter or an active-connection-capable ESPHome proxy within range. The companion TENWAYS app may block a concurrent BLE connection.
+The original installation note (the steps are now in the README): Add this repository in HACS as a custom **Integration** repository. Install and restart Home Assistant. In Settings → Devices & services, add **TENWAYS BLE** and select the device advertised as **Longtail Duo**. Requires an HA Bluetooth adapter or an active-connection-capable ESPHome proxy within range. The companion TENWAYS app may block a concurrent BLE connection.
 
 The bike advertises two endpoints. Only **Longtail Duo** (King Meter service) delivers bike data; HA offers it automatically and asks before adding it. The second endpoint `Tenways-ble-*` shows no useful values and is no longer offered; an existing entry for it can be deleted and stays deleted. It can still be added by hand for diagnostics.
 

@@ -21,6 +21,7 @@ Everything the integration exposes, where each value comes from, and how far it 
 - Disabled diagnostic sensors for the raw status fields `0x0B`, `0x11`, `0x23`, `0x4F`; `0x4F` is not interpreted.
 - Standard Bluetooth battery (`0x2A19`): **not the traction battery**; on the Longtail Duo it counts up by 1 roughly every read while the bike is on and resets to 0 when it is switched off, so it looks like a counter. Disabled diagnostic sensor.
 - Last successful read (shows how old the kept values are), BLE signal, last advertisement and optional Device Information characteristics.
+- Bluetooth recently seen (diagnostic binary sensor): whether the bike advertised within the last 120 s.
 
 No unlock, light, power, firmware, configuration or pairing commands are implemented. The two recorded read requests (device info, 4 keys; status, 11 keys) are sent via the `4348…0002` write characteristic on every poll; replies arrive through `4348…0003` notify, are reassembled if fragmented and must pass length and CRC-16/MODBUS checks. The only other things ever sent are the two writes the TENWAYS app also makes, each only when you press its button: the clock sync (**Set clock**) and clearing the trip (**Reset trip**). No spontaneous notifications were observed without a request.
 
@@ -41,18 +42,16 @@ A drop of the ride time only counts as a cleared trip if the trip distance dropp
 
 HA only sees changes when it reads the bike: a ride after the last read of the evening counts for the day of the next read. Riding while the trip is cleared on the display and reading only afterwards also undercounts if the new trip has grown beyond the old one by then; with the **Reset trip** button HA knows about the reset.
 
+## Setting the bike's clock
+
+The bike has no daylight saving and keeps showing summer time until it is set. The **Set clock** button (a configuration entity of the bike device) sends Home Assistant's local time to the bike, the same write the TENWAYS app makes. It sends nothing on its own; press it with the bike switched on and in range of an adapter or proxy, with the TENWAYS app closed. Press it again after each time change. Confirmed on a Longtail Duo: after a press the display changed from summer time to the correct local time to the minute; the assist level and everything else stay as they are.
+
+The automatic example is in [automations.md](automations.md#example-set-the-clock-automatically).
+
 ## Resetting the trip
 
 The **Reset trip** button (a configuration entity of the bike device) clears the trip like the display's "Clear trip" (hold [i], broom icon): trip distance, ride time, maximum and average speed go to 0, and so do the display's "CO₂ saved" and "trees saved", which it derives from the trip. The odometer stays. It is the TENWAYS app's own write; the app has it for the Longtail Duo but does not show it. Nothing is sent on its own; press it with the bike on and in range. Confirmed on a Longtail Duo: the bike acknowledges and the display shows 0.
 
 HA's statistics are not affected: trip distance and ride time are `total_increasing`, so a reset starts a new cycle and the distance per day, week or month keeps counting.
 
-
 The daily example is in [automations.md](automations.md#example-a-fresh-trip-every-day).
-
-## Setting the bike's clock
-
-The bike has no daylight saving and keeps showing summer time until it is set. The **Set clock** button (a configuration entity of the bike device) sends Home Assistant's local time to the bike, the same write the TENWAYS app makes. It sends nothing on its own; press it with the bike switched on and in range of an adapter or proxy, with the TENWAYS app closed. Press it again after each time change. Confirmed on a Longtail Duo: after a press the display changed from summer time to the correct local time to the minute; the assist level and everything else stay as they are.
-
-
-The automatic example is in [automations.md](automations.md#example-set-the-clock-automatically).

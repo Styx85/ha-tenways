@@ -8,24 +8,24 @@ Unofficial integration for TENWAYS e-bikes over Bluetooth, built on the [`tenway
 
 - **Battery and ride data:** traction battery, odometer, trip distance, ride time, maximum and average speed, light, remaining range.
 - **Totals HA keeps for you:** total ride time, average and maximum speed over all trips, ride time and distance today. They keep counting when the trip is cleared, are stored per bike and appear in the long-term statistics.
-- **Two buttons:** **Set clock** (the bike has no daylight saving) and **Reset trip**. Each sends the TENWAYS app's own write, only when pressed.
+- **Buttons:** **Set clock** (the bike has no daylight saving) and **Reset trip**, each sending the TENWAYS app's own write, only when pressed; plus a disabled one that resets HA's overall maximum.
 - Keeps the last values while the bike is off, also across restarts; polls immediately when the bike is switched on.
 - Diagnostics download with the address and serial number redacted.
 
-No unlock, light, firmware or configuration commands. Details on every entity, where its value comes from and how far it is confirmed: [docs/entities.md](docs/entities.md).
+No unlock, light, firmware or configuration commands. Details on every entity, where its value comes from and how far it is confirmed: [docs/entities.md](https://github.com/Styx85/ha-tenways/blob/main/docs/entities.md).
 
 ## Supported bikes
 
 | Bike (advertised name) | Status |
 |---|---|
 | Longtail Duo | **tested**, all features |
-| CGO009_D | probably works: the TENWAYS app uses the same driver as for the Longtail Duo |
-| CGO009, AGO, AGO X, AGO T, CARGO | possibly: same King Meter protocol in the app, untested. If HA does not discover the bike, add it by its Bluetooth address |
-| CGO800 | not yet: King Meter with the checksum in the other byte order |
-| AGO AIR, Wayfarer | no: encrypted session |
+| CGO009_D | likely: the TENWAYS app uses the same driver as for the Longtail Duo, untested |
+| CGO009, AGO, AGOX, AGOT, CARGO | possibly: same King Meter protocol in the app, untested |
+| CGO800 | not yet: King Meter with the checksum in the other byte order, which `tenways-ble` neither sends nor accepts |
+| AGO AIR, Wayfarer_B | no: encrypted session |
 | CGO600, CGO600_D | no: different protocol (Nordic UART, `0x57` frames) |
 
-How the app picks a driver per model: [docs/models.md](docs/models.md). Tried another model? Please open an issue with a diagnostics download.
+HA discovers a bike that advertises as `Longtail Duo` or with the King Meter service; add any other by its Bluetooth address. How the app picks a driver per model: [docs/models.md](https://github.com/Styx85/ha-tenways/blob/main/docs/models.md). Tried another model? Please open an issue with a diagnostics download.
 
 ## Installation
 
@@ -44,19 +44,19 @@ Settings → Devices & services → TENWAYS → Configure:
 
 ## Automation hints
 
-- **Set the clock after a daylight saving change** or every 90 days, after the first successful read of the day: [example](docs/automations.md#example-set-the-clock-automatically).
-- **A fresh trip every day** on the display, cleared after the first successful read of the day: [example](docs/automations.md#example-a-fresh-trip-every-day).
-- Distance per week as a statistics graph, and a ride log in a calendar: [docs/automations.md](docs/automations.md#distance-per-period-and-ride-log).
+- **Set the clock after a daylight saving change** or every 90 days, at the first successful read after it: [example](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md#example-set-the-clock-automatically).
+- **A fresh trip every day** on the display, cleared after the first successful read of the day: [example](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md#example-a-fresh-trip-every-day).
+- Distance per week as a statistics graph, and a ride log in a calendar: [docs/automations.md](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md#distance-per-period-and-ride-log).
 
 ## Limitations
 
 - HA only reads the bike while it is switched on and in Bluetooth range; a ride counts when the bike is next seen at home.
 - Current speed and power have not yet been checked while riding.
-- More on polling, kept values, Bluetooth proxies and bug reports: [docs/how-it-works.md](docs/how-it-works.md).
+- More on polling, kept values, Bluetooth proxies and bug reports: [docs/how-it-works.md](https://github.com/Styx85/ha-tenways/blob/main/docs/how-it-works.md).
 
 ## Documentation
 
-- [Entities](docs/entities.md) · [Automations and dashboards](docs/automations.md) · [Supported models](docs/models.md) · [How it works, limitations and troubleshooting](docs/how-it-works.md)
+- [Entities](https://github.com/Styx85/ha-tenways/blob/main/docs/entities.md) · [Automations and dashboards](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md) · [Supported models](https://github.com/Styx85/ha-tenways/blob/main/docs/models.md) · [How it works, limitations and troubleshooting](https://github.com/Styx85/ha-tenways/blob/main/docs/how-it-works.md)
 - Protocol, test vectors and research notes: [tenways-ble](https://github.com/Styx85/tenways-ble)
 
 ## Acknowledgements / Credits

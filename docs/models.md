@@ -7,10 +7,10 @@ Only the **Longtail Duo** has been tested. For the other models, this page reaso
 | Name starts with | Driver in the app | Protocol | With this integration |
 |---|---|---|---|
 | `Longtail Duo` | own driver ("long tail duo/CGO009_D") on the AGO base | King Meter | **tested**: all sensors, Set clock, Reset trip |
-| `CGO009_D` | the same driver as the Longtail Duo | King Meter | probably works |
+| `CGO009_D` | the same driver as the Longtail Duo | King Meter | likely (shared driver), untested |
 | `CGO009` (not `L`/`_D`) | "009", AGO base | King Meter | possibly; it has an assist level field (`0x12`) the integration does not read |
 | `AGO`, `AGOX`, `AGOT`, `CARGO` and other names | "ago", the AGO base | King Meter | possibly; the app sets the clock on `AGOX`, `AGOT` and `CARGO` too |
-| `CGO800` | "800s" | King Meter, CRC low byte first | not yet: `tenways-ble` expects the CRC high byte first and rejects the replies |
+| `CGO800` | "800s" | King Meter, CRC low byte first | not yet: `tenways-ble` sends and checks the CRC high byte first, so the display probably does not answer and its replies would be rejected |
 | `AGO AIR`, `Wayfarer_B`, … | "AGO AIR" | King Meter, partly encrypted (`0xD8`/`0xD2` handshake) | no: the encrypted session is not implemented |
 | `CGO600_D` | own driver | `0x57` frames | no |
 | `CGO600` | Nordic UART | not King Meter | no |
