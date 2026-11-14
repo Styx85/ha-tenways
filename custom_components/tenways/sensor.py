@@ -88,7 +88,8 @@ class TenwaysSensor(TenwaysEntity, RestoreSensor):
         elif key == "ride_seconds":
             self._attr_native_unit_of_measurement = UnitOfTime.SECONDS
             self._attr_suggested_unit_of_measurement = UnitOfTime.HOURS
-            self._attr_suggested_display_precision = 1
+            # Two decimals of an hour: one rounds to 6 minutes (42970 s showed as 11 h 54 min).
+            self._attr_suggested_display_precision = 2
             self._attr_device_class = SensorDeviceClass.DURATION
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING  # accumulated until the trip is reset
         elif key == "remaining_range":
