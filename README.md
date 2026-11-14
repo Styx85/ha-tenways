@@ -8,7 +8,8 @@ Unofficial integration for TENWAYS e-bikes over Bluetooth, built on the [`tenway
 
 - **Battery and ride data:** traction battery, odometer, trip distance, ride time, maximum and average speed, light, remaining range.
 - **Totals HA keeps for you:** total ride time, average and maximum speed over all trips, ride time and distance today. They keep counting when the trip is cleared, are stored per bike and appear in the long-term statistics.
-- **Buttons:** **Set clock** (the bike has no daylight saving) and **Reset trip**, each sending the TENWAYS app's own write, only when pressed; plus a disabled one that resets HA's overall maximum.
+- **Automatic trip reset and clock (options):** clear the trip once a day or for every ride, and keep the bike's clock right across daylight saving changes. Both happen in the connection that reads the bike, right after the read, so no ride is lost and it works even if you ride off at once.
+- **Buttons:** **Set clock** (the bike has no daylight saving) and **Reset trip**, each sending the TENWAYS app's own write; plus a disabled one that resets HA's overall maximum.
 - Keeps the last values while the bike is off, also across restarts; polls immediately when the bike is switched on.
 - Diagnostics download with the address and serial number redacted.
 
@@ -55,13 +56,10 @@ Settings → Devices & services → TENWAYS → Configure:
 
 A failed automatic write is tried again on later reads, at most three attempts a day. The **Reset trip** button also reads the trip into HA first, in the same connection.
 
-## Automation hints
+## Dashboards and automations
 
-The options above replace the first two automations; they remain as examples for your own variants.
-
-- **Set the clock after a daylight saving change** or every 90 days, at the first successful read after it: [example](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md#example-set-the-clock-automatically).
-- **A fresh trip every day** on the display, cleared after the first successful read of the day: [example](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md#example-a-fresh-trip-every-day).
 - Distance per week as a statistics graph, and a ride log in a calendar: [docs/automations.md](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md#distance-per-period-and-ride-log).
+- If you prefer automations over the options: examples to [set the clock](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md#example-set-the-clock-automatically) and to [clear the trip once a day](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md#example-a-fresh-trip-every-day) with the buttons. They need a second connection a few seconds after the read, so they can miss a bike that rides off at once.
 
 ## Limitations
 
@@ -71,7 +69,7 @@ The options above replace the first two automations; they remain as examples for
 
 ## Documentation
 
-- [Entities](https://github.com/Styx85/ha-tenways/blob/main/docs/entities.md) · [Automations and dashboards](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md) · [How it works, limitations and troubleshooting](https://github.com/Styx85/ha-tenways/blob/main/docs/how-it-works.md)
+- [Entities](https://github.com/Styx85/ha-tenways/blob/main/docs/entities.md) · [Dashboards and automations](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md) · [How it works, limitations and troubleshooting](https://github.com/Styx85/ha-tenways/blob/main/docs/how-it-works.md)
 - Protocol, test vectors and research notes: [tenways-ble](https://github.com/Styx85/tenways-ble)
 
 ## Acknowledgements / Credits
