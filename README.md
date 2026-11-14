@@ -103,13 +103,13 @@ A new helper starts at 1970, so the first read after setting this up sets the cl
 
 ## Resetting the trip
 
-The **Reset trip** button (a configuration entity of the bike device) clears the trip like the display's "Clear trip" (hold [i], broom icon): trip distance, trip time, maximum and average speed go to 0, and so do the display's "CO₂ saved" and "trees saved", which it derives from the trip. The odometer stays. It is the TENWAYS app's own write; the app has it for the Longtail Duo but does not show it. Nothing is sent on its own; press it with the bike on and in range. Confirmed on a Longtail Duo: the bike acknowledges and the display shows 0.
+The **Reset trip** button (a configuration entity of the bike device) clears the trip like the display's "Clear trip" (hold [i], broom icon): trip distance, ride time, maximum and average speed go to 0, and so do the display's "CO₂ saved" and "trees saved", which it derives from the trip. The odometer stays. It is the TENWAYS app's own write; the app has it for the Longtail Duo but does not show it. Nothing is sent on its own; press it with the bike on and in range. Confirmed on a Longtail Duo: the bike acknowledges and the display shows 0.
 
 HA's statistics are not affected: trip distance and ride time are `total_increasing`, so a reset starts a new cycle and the distance per day, week or month keeps counting.
 
 ### Example: a fresh trip every day
 
-Clears the trip after the first successful read of each day, so the display shows today's ride. Yesterday's trip, time, averages and maximum are lost on the bike (HA keeps their history). As with the clock example, the time of the last *successful* reset is kept in a helper, because the button records failed presses too; a failed press is tried again on a later read, at most once an hour.
+Clears the trip after the first successful read of each day, so the display shows today's ride. Yesterday's trip distance, ride time, average and maximum speed are lost on the bike (HA keeps their history). As with the clock example, the time of the last *successful* reset is kept in a helper, because the button records failed presses too; a failed press is tried again on a later read, at most once an hour.
 
 ```yaml
 input_datetime:
