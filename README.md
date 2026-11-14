@@ -120,7 +120,7 @@ For a **ride log in a calendar** (start, end, distance, duration, average speed,
 ## Related projects
 
 - **[tenways-bridge](https://github.com/stein155/tenways-bridge)** is an ESPHome firmware for an ESP32 that sits where the bike is parked, connects to the bike by itself and reports to Home Assistant. It supports more display types (Nordic UART and King Meter, including an encrypted session) and can switch the light. It lists the Longtail Duo as experimental and builds on our protocol notes. Choose it if you want a dedicated device and do not mind its firmware.
-- **This integration** uses Home Assistant's own Bluetooth stack, so a standard ESPHome Bluetooth proxy with active connections is enough, and it only reads (no commands are sent to the bike).
+- **This integration** uses Home Assistant's own Bluetooth stack, so a standard ESPHome Bluetooth proxy with active connections is enough, and it only reads, except for the clock sync, which is sent only when you press **Set clock** (or an automation presses it); there is no unlock, light or configuration command.
 
 Both are unofficial and not affiliated with TENWAYS.
 
