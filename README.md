@@ -45,7 +45,7 @@ Close the TENWAYS app: the bike accepts one connection at a time.
 
 ## Options
 
-Settings → Devices & services → TENWAYS → Configure:
+Settings → Devices & services → TENWAYS → Configure. *Clear the trip automatically* (a dropdown) and *Set the clock automatically* (a switch) are also on the device page under Configuration and take effect at once:
 
 - **Poll interval:** 300 s by default (30–3600 s). Each poll is a short BLE connection.
 - **Ride time before HA counted:** hours ridden before the trip was first cleared, so that the total ride time and the overall average are right.

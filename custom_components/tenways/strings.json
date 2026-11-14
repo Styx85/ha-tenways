@@ -141,6 +141,21 @@
       "reset_max_speed_total": {
         "name": "Reset overall maximum speed"
       }
+    },
+    "select": {
+      "trip_reset": {
+        "name": "Clear the trip automatically",
+        "state": {
+          "off": "Off",
+          "daily": "Once a day (first read)",
+          "ride": "Each time the bike appears (per ride)"
+        }
+      }
+    },
+    "switch": {
+      "auto_clock": {
+        "name": "Set the clock automatically"
+      }
     }
   },
   "exceptions": {

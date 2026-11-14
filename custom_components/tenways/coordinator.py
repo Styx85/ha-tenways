@@ -76,10 +76,11 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         self.address = address
         # Advertised name; picks the model's profile (the app's driver). Updated from advertisements.
         self.model_name = name
-        self._trip_reset = trip_reset
+        self.trip_reset = trip_reset
         # True until the first read after the bike (re)appeared: a switch-on or a return home.
         self._new_session = True
-        self._auto_clock = auto_clock
+        self.auto_clock = auto_clock
+        self.reload_options: dict = {}
         self._profile_logged: str | None = None
         # Values over all trips and per day; None only in tests that do not need them.
         self.totals = totals
@@ -229,12 +230,12 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         """The options' clock sync and trip reset; a failure is retried on a later read."""
         totals = self.totals
         new_session, self._new_session = self._new_session, False
-        if totals is None or not (self._auto_clock or self._trip_reset != TRIP_RESET_OFF):
+        if totals is None or not (self.auto_clock or self.trip_reset != TRIP_RESET_OFF):
             return
         now = dt_util.now()
         # The trip first, right after the read: nothing ridden in between can be lost.
         await self._async_automatic_trip_reset(bike, now, new_session)
-        if self._auto_clock and totals.clock_due(now):
+        if self.auto_clock and totals.clock_due(now):
             try:
                 await asyncio.wait_for(bike.set_clock(now), KING_METER_TIMEOUT_SECONDS)
             except (TenwaysError, TenwaysProtocolError, BleakError, OSError, TimeoutError) as exc:
@@ -247,7 +248,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
     async def _async_automatic_trip_reset(self, bike: TenwaysBike, now: datetime, new_session: bool) -> None:
         totals = self.totals
         assert totals is not None
-        if not self._trip_reset_wanted(now, new_session):
+        if not self.trip_reset_wanted(now, new_session):
             return
         # The read above already took the trip into HA's totals. An empty trip needs no write,
         # but counts as done, so a ride later today is not cleared when it is read.
@@ -261,7 +262,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
             totals.async_write_failed(now, "reset_failures")
             self._new_session = new_session  # try again on the next read of this session
         else:
-            _LOGGER.info("Cleared the trip of %s (%s)", self.address, self._trip_reset)
+            _LOGGER.info("Cleared the trip of %s (%s)", self.address, self.trip_reset)
             totals.async_trip_reset_done(now)
             # The values were read just before; show the cleared trip without waiting for the next poll.
             for key in ('trip_distance', 'ride_seconds', 'max_speed', 'average_speed'):
@@ -271,10 +272,10 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
     def _trip_reset_wanted(self, now: datetime, new_session: bool) -> bool:
         totals = self.totals
         assert totals is not None
-        if self._trip_reset == TRIP_RESET_DAILY:
+        if self.trip_reset == TRIP_RESET_DAILY:
             return totals.trip_reset_due(now)
         # Per ride: the first read after the bike appeared (switched on, or back in range).
-        return self._trip_reset == TRIP_RESET_RIDE and new_session and totals.trip_reset_allowed(now)
+        return self.trip_reset == TRIP_RESET_RIDE and new_session and totals.trip_reset_allowed(now)
 
     def _account(self, telemetry: dict) -> dict:
         """Keep a status read's values and add it to the totals; returns the live values."""
