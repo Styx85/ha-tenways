@@ -141,6 +141,21 @@
       "reset_max_speed_total": {
         "name": "Höchstgeschwindigkeit gesamt zurücksetzen"
       }
+    },
+    "select": {
+      "trip_reset": {
+        "name": "Trip automatisch zurücksetzen",
+        "state": {
+          "off": "Aus",
+          "daily": "Einmal täglich (erster Abruf)",
+          "ride": "Bei jedem Auftauchen (pro Fahrt)"
+        }
+      }
+    },
+    "switch": {
+      "auto_clock": {
+        "name": "Uhr automatisch stellen"
+      }
     }
   },
   "exceptions": {

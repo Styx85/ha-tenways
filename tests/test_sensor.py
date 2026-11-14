@@ -33,6 +33,8 @@ async def _setup_without_bike(hass, stale=()):
     registry.async_get_or_create("button", DOMAIN, f"{ADDRESS}_set_clock", suggested_object_id="tenways_set_clock", config_entry=entry)
     registry.async_get_or_create("button", DOMAIN, f"{ADDRESS}_reset_trip", suggested_object_id="tenways_reset_trip", config_entry=entry)
     registry.async_get_or_create("binary_sensor", DOMAIN, f"{ADDRESS}_light", suggested_object_id="tenways_light", config_entry=entry)
+    registry.async_get_or_create("select", DOMAIN, f"{ADDRESS}_trip_reset", suggested_object_id="tenways_trip_reset", config_entry=entry)
+    registry.async_get_or_create("switch", DOMAIN, f"{ADDRESS}_auto_clock", suggested_object_id="tenways_auto_clock", config_entry=entry)
     with patch("custom_components.tenways.coordinator.bluetooth.async_last_service_info", return_value=None), \
          patch("custom_components.tenways.coordinator.bluetooth.async_ble_device_from_address", return_value=None), \
          patch("custom_components.tenways.bluetooth.async_register_callback", return_value=lambda: None):
@@ -106,3 +108,23 @@ async def test_reset_trip_button_writes_only_when_pressed(hass):
         reset_trip.assert_not_called()  # nothing is sent on setup or polling
         await hass.services.async_call("button", "press", {"entity_id": "button.tenways_reset_trip"}, blocking=True)
     reset_trip.assert_awaited_once()
+
+
+async def test_trip_reset_and_clock_options_on_the_device_page(hass):
+    from custom_components.tenways.const import CONF_AUTO_CLOCK, CONF_TRIP_RESET
+
+    entry = await _setup_without_bike(hass)
+    coordinator = entry.runtime_data
+    assert hass.states.get("select.tenways_trip_reset").state == "off"
+    assert hass.states.get("switch.tenways_auto_clock").state == "off"
+    with patch.object(hass.config_entries, "async_reload") as reload:
+        await hass.services.async_call(
+            "select", "select_option", {"entity_id": "select.tenways_trip_reset", "option": "ride"}, blocking=True,
+        )
+        await hass.services.async_call("switch", "turn_on", {"entity_id": "switch.tenways_auto_clock"}, blocking=True)
+        await hass.async_block_till_done()
+        reload.assert_not_called()  # applied at once, no reload
+    assert entry.options[CONF_TRIP_RESET] == "ride" and entry.options[CONF_AUTO_CLOCK] is True
+    assert (coordinator.trip_reset, coordinator.auto_clock) == ("ride", True)
+    assert hass.states.get("select.tenways_trip_reset").state == "ride"
+    assert hass.states.get("switch.tenways_auto_clock").state == "on"

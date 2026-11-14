@@ -11,7 +11,7 @@ from .const import CONF_ADDRESS, CONF_AUTO_CLOCK, CONF_TRIP_RESET, TRIP_RESET_OF
 from .coordinator import TenwaysCoordinator
 from .totals import TenwaysTotals
 
-PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.BUTTON]
+PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.BUTTON, Platform.SELECT, Platform.SWITCH]
 
 # Entities that earlier versions created and that no longer exist.
 STALE_ENTITIES = (
@@ -40,6 +40,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: TenwaysConfigEntry) -> b
         auto_clock=entry.options.get(CONF_AUTO_CLOCK, False),
     )
     entry.runtime_data = coordinator
+    # Options that need a reload when they change (see _async_options_updated).
+    coordinator.reload_options = {k: v for k, v in entry.options.items() if k not in LIVE_OPTIONS}
     # Startup should not fail while the bicycle is switched off or away.
     await coordinator.async_refresh()
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -52,8 +54,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: TenwaysConfigEntry) -> b
     return True
 
 
+# Options the coordinator applies at once; any other change reloads the entry.
+LIVE_OPTIONS = {CONF_TRIP_RESET: TRIP_RESET_OFF, CONF_AUTO_CLOCK: False}
+
+
 async def _async_options_updated(hass: HomeAssistant, entry: TenwaysConfigEntry) -> None:
-    await hass.config_entries.async_reload(entry.entry_id)
+    coordinator = entry.runtime_data
+    others = {k: v for k, v in entry.options.items() if k not in LIVE_OPTIONS}
+    if others != coordinator.reload_options:
+        await hass.config_entries.async_reload(entry.entry_id)
+        return
+    coordinator.trip_reset = entry.options.get(CONF_TRIP_RESET, TRIP_RESET_OFF)
+    coordinator.auto_clock = entry.options.get(CONF_AUTO_CLOCK, False)
+    coordinator.async_update_listeners()
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: TenwaysConfigEntry) -> bool:
