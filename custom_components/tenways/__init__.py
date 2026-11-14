@@ -7,7 +7,7 @@ from homeassistant.const import CONF_NAME, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
-from .const import CONF_ADDRESS, CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE, DOMAIN, POLL_SECONDS
+from .const import CONF_ADDRESS, CONF_AUTO_CLOCK, CONF_TRIP_RESET, TRIP_RESET_OFF, CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE, DOMAIN, POLL_SECONDS
 from .coordinator import TenwaysCoordinator
 from .totals import TenwaysTotals
 
@@ -36,6 +36,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: TenwaysConfigEntry) -> b
     coordinator = TenwaysCoordinator(
         hass, entry.data[CONF_ADDRESS], entry.options.get(CONF_POLL_SECONDS, POLL_SECONDS), totals,
         entry.data.get(CONF_NAME) or entry.title,
+        trip_reset=entry.options.get(CONF_TRIP_RESET, TRIP_RESET_OFF),
+        auto_clock=entry.options.get(CONF_AUTO_CLOCK, False),
     )
     entry.runtime_data = coordinator
     # Startup should not fail while the bicycle is switched off or away.

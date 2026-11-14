@@ -30,10 +30,14 @@
         "description": "Each poll opens a short BLE connection. The TENWAYS app cannot connect while HA is polling.",
         "data": {
           "poll_seconds": "Poll interval (seconds)",
-          "ride_hours_before": "Ride time before HA counted (hours)"
+          "ride_hours_before": "Ride time before HA counted (hours)",
+          "auto_clock": "Set the clock automatically",
+          "trip_reset": "Clear the trip automatically"
         },
         "data_description": {
-          "ride_hours_before": "Total ride time = this value plus all trips HA has read since. Enter the bike's ride time from before the trip was first cleared, so that the overall average (odometer ÷ total ride time) is right."
+          "ride_hours_before": "Total ride time = this value plus all trips HA has read since. Enter the bike's ride time from before the trip was first cleared, so that the overall average (odometer ÷ total ride time) is right.",
+          "auto_clock": "In the same connection as a read: after a daylight saving change, every 90 days, and when first enabled.",
+          "trip_reset": "Right after a read, in the same connection, so it works when you ride off at once. The read comes first, so HA keeps every ride; an empty trip is not written. “Each time the bike appears” clears it at every switch-on and when it comes back into range."
         }
       }
     }
@@ -148,6 +152,15 @@
     },
     "trip_reset_failed": {
       "message": "Could not reset the trip: {error}"
+    }
+  },
+  "selector": {
+    "trip_reset": {
+      "options": {
+        "off": "Off",
+        "daily": "Once a day (first read)",
+        "ride": "Each time the bike appears (per ride)"
+      }
     }
   }
 }

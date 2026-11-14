@@ -18,7 +18,9 @@ async def test_options_flow_sets_poll_interval(hass):
     with patch("custom_components.tenways.async_setup_entry", return_value=True):
         result = await hass.config_entries.options.async_configure(result["flow_id"], {CONF_POLL_SECONDS: 120})
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert entry.options == {CONF_POLL_SECONDS: 120, CONF_RIDE_HOURS_BEFORE: 0.0}
+    assert entry.options == {
+        CONF_POLL_SECONDS: 120, CONF_RIDE_HOURS_BEFORE: 0.0, "trip_reset": "off", "auto_clock": False,
+    }
 
 
 async def test_options_flow_sets_ride_time_before(hass):

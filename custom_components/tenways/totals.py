@@ -23,6 +23,8 @@ STORAGE_VERSION = 1
 SAVE_DELAY_SECONDS = 10
 # The TENWAYS app also discards higher trip maxima as implausible.
 MAX_PLAUSIBLE_SPEED_KMH = 75.0
+MAX_FAILURES_PER_DAY = 3
+CLOCK_MAX_AGE_SECONDS = 90 * 24 * 3600
 
 
 @dataclass
@@ -39,6 +41,13 @@ class TotalsState:
     day_ride_s: float = 0.0
     day_start_odometer: float | None = None
     last_odometer: float | None = None
+    # Automatic writes (options): day of the last trip reset, last clock set, failures today.
+    trip_reset_day: str | None = None
+    clock_set_at: float | None = None  # timestamp
+    clock_utc_offset: float | None = None  # seconds, local offset when the clock was set
+    failed_day: str | None = None
+    clock_failures: int = 0
+    reset_failures: int = 0
 
 
 class TenwaysTotals:
@@ -166,6 +175,58 @@ class TenwaysTotals:
             s.last_trip_km = 0.0
         s.max_ignore_upto = None
         self._changed()
+
+    # Automatic writes; attempts stop for the day after MAX_FAILURES_PER_DAY failures.
+
+    def trip_reset_allowed(self, now: datetime) -> bool:
+        """Fewer than MAX_FAILURES_PER_DAY failed resets today."""
+        return self._failures(now.date().isoformat(), "reset_failures") < MAX_FAILURES_PER_DAY
+
+    def trip_reset_due(self, now: datetime) -> bool:
+        """No reset yet today (and not given up for today)."""
+        return self.state.trip_reset_day != now.date().isoformat() and self.trip_reset_allowed(now)
+
+    def clock_due(self, now: datetime) -> bool:
+        s = self.state
+        if self._failures(now.date().isoformat(), "clock_failures") >= MAX_FAILURES_PER_DAY:
+            return False
+        if s.clock_set_at is None or s.clock_utc_offset is None:
+            return True
+        offset = now.utcoffset()
+        return (
+            (offset is not None and offset.total_seconds() != s.clock_utc_offset)
+            or now.timestamp() - s.clock_set_at > CLOCK_MAX_AGE_SECONDS
+        )
+
+    @callback
+    def async_trip_reset_done(self, now: datetime) -> None:
+        """The trip was cleared by HA (button or daily option); the next read counts from 0."""
+        self.state.trip_reset_day = now.date().isoformat()
+        self.async_trip_cleared()
+
+    @callback
+    def async_clock_set(self, now: datetime) -> None:
+        if self._unloaded:
+            return
+        offset = now.utcoffset()
+        self.state.clock_set_at = now.timestamp()
+        self.state.clock_utc_offset = offset.total_seconds() if offset is not None else 0.0
+        self._changed()
+
+    @callback
+    def async_write_failed(self, now: datetime, which: str) -> None:
+        """Count a failed automatic write ("clock_failures" or "reset_failures") for today."""
+        if self._unloaded:
+            return
+        today = now.date().isoformat()
+        if self.state.failed_day != today:
+            self.state.failed_day = today
+            self.state.clock_failures = self.state.reset_failures = 0
+        setattr(self.state, which, getattr(self.state, which) + 1)
+        self._changed()
+
+    def _failures(self, today: str, which: str) -> int:
+        return getattr(self.state, which) if self.state.failed_day == today else 0
 
     @callback
     def async_reset_max_speed(self) -> None:

@@ -16,7 +16,7 @@ from tenways_ble.const import TENWAYS_SERVICE_UUID
 
 from .models import model_profile
 from .const import (
-    CONF_ADDRESS, KING_METER_NAME_PREFIXES, CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE, DOMAIN, MAX_POLL_SECONDS, MIN_POLL_SECONDS, NAME_PREFIX,
+    CONF_ADDRESS, CONF_AUTO_CLOCK, CONF_TRIP_RESET, TRIP_RESET_MODES, TRIP_RESET_OFF, KING_METER_NAME_PREFIXES, CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE, DOMAIN, MAX_POLL_SECONDS, MIN_POLL_SECONDS, NAME_PREFIX,
     POLL_SECONDS,
 )
 
@@ -141,4 +141,8 @@ class TenwaysOptionsFlow(OptionsFlow):
             vol.Required(CONF_RIDE_HOURS_BEFORE, default=options.get(CONF_RIDE_HOURS_BEFORE, 0)): vol.All(
                 vol.Coerce(float), vol.Range(min=0, max=100000)
             ),
+            vol.Required(CONF_TRIP_RESET, default=options.get(CONF_TRIP_RESET, TRIP_RESET_OFF)): SelectSelector(
+                SelectSelectorConfig(options=list(TRIP_RESET_MODES), translation_key=CONF_TRIP_RESET)
+            ),
+            vol.Required(CONF_AUTO_CLOCK, default=options.get(CONF_AUTO_CLOCK, False)): bool,
         }))

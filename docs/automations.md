@@ -1,6 +1,6 @@
 # Automations and dashboards
 
-Examples that run in Home Assistant with this integration. Adjust the entity IDs to yours under Settings → Entities. Back to the [README](../README.md).
+Examples that run in Home Assistant with this integration. Since 0.13.0 the integration's options *Clear the trip automatically* (once a day or each time the bike appears) and *Set the clock automatically* do the first two in the poll's own connection, which also works when you ride off right after switching on; the automations need a second connection a few seconds later. Adjust the entity IDs to yours under Settings → Entities. Back to the [README](../README.md).
 
 ## Example: set the clock automatically
 
