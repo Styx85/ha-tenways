@@ -110,6 +110,9 @@
     "button": {
       "set_clock": {
         "name": "Uhr stellen"
+      },
+      "reset_trip": {
+        "name": "Trip zurücksetzen"
       }
     }
   },
@@ -119,6 +122,9 @@
     },
     "clock_failed": {
       "message": "Die Uhr des Rads konnte nicht gestellt werden: {error}"
+    },
+    "trip_reset_failed": {
+      "message": "Der Trip konnte nicht zurückgesetzt werden: {error}"
     }
   }
 }

@@ -13,7 +13,7 @@ The bike advertises two endpoints. Only **Longtail Duo** (King Meter service) de
 
 - Traction battery (%) from proprietary status field `0x0F`; 48 % in HA with 3 of 5 bars on the display.
 - Odometer (km, field `0x0C`), trip distance (km, field `0x09`), maximum and average ride speed (km/h), accumulated ride time (shown in hours). Odometer and trip match the display; ride time and average speed agree with the distance.
-  On the Longtail Duo these are lifetime counters: the trip values equal the odometer and keep counting until the trip is reset in the TENWAYS app (this integration never resets it). Odometer, trip distance and ride time are `total_increasing`, so HA's statistics give distance and riding hours per day, week or month.
+  On the Longtail Duo these are lifetime counters: the trip values equal the odometer and keep counting until the trip is cleared, on the display or with the **Reset trip** button. Odometer, trip distance and ride time are `total_increasing`, so HA's statistics give distance and riding hours per day, week or month.
 - Current speed from field `0x06` (disabled by default; read 0 while parked, not yet confirmed while riding).
 - Firmware (`2.20.16` observed; the app shows `1.4.0` elsewhere, so this may be another component) and serial number, read once per HA start.
 - Light on/off (binary sensor) from field `0x11` (0 = off); follows the headlight, also with automatic light.
@@ -28,7 +28,7 @@ The bike advertises two endpoints. Only **Longtail Duo** (King Meter service) de
 - Standard Bluetooth battery (`0x2A19`): **not the traction battery**; on the Longtail Duo it counts up by 1 roughly every read while the bike is on and resets to 0 when it is switched off, so it looks like a counter. Disabled diagnostic sensor.
 - Last successful read (shows how old the kept values are), BLE signal, last advertisement and optional Device Information characteristics.
 
-No unlock, light, power, firmware, configuration or pairing commands are implemented. The two recorded read requests (device info `0x04`, status `0x0B`) are sent via the `4348…0002` write characteristic on every poll; replies arrive through `4348…0003` notify, are reassembled if fragmented and must pass length and CRC-16/MODBUS checks. The only other thing ever sent is the clock sync of the **Set clock** button, and only when you press it. No spontaneous notifications were observed without a request.
+No unlock, light, power, firmware, configuration or pairing commands are implemented. The two recorded read requests (device info, 4 keys; status, 11 keys) are sent via the `4348…0002` write characteristic on every poll; replies arrive through `4348…0003` notify, are reassembled if fragmented and must pass length and CRC-16/MODBUS checks. The only other things ever sent are the two writes the TENWAYS app also makes, each only when you press its button: the clock sync (**Set clock**) and clearing the trip (**Reset trip**). No spontaneous notifications were observed without a request.
 
 ## Limitations
 
@@ -101,6 +101,56 @@ Automation (adjust the entity IDs to yours under Settings → Entities):
 
 A new helper starts at 1970, so the first read after setting this up sets the clock once.
 
+## Resetting the trip
+
+The **Reset trip** button (a configuration entity of the bike device) clears the trip like the display's "Clear trip" (hold [i], broom icon): trip distance, ride time, maximum and average speed go to 0, and so do the display's "CO₂ saved" and "trees saved", which it derives from the trip. The odometer stays. It is the TENWAYS app's own write; the app has it for the Longtail Duo but does not show it. Nothing is sent on its own; press it with the bike on and in range. Confirmed on a Longtail Duo: the bike acknowledges and the display shows 0.
+
+HA's statistics are not affected: trip distance and ride time are `total_increasing`, so a reset starts a new cycle and the distance per day, week or month keeps counting.
+
+### Example: a fresh trip every day
+
+Clears the trip after the first successful read of each day, so the display shows today's ride. Yesterday's trip distance, ride time, average and maximum speed are lost on the bike (HA keeps their history). As with the clock example, the time of the last *successful* reset is kept in a helper, because the button records failed presses too; a failed press is tried again on a later read, at most once an hour.
+
+```yaml
+input_datetime:
+  tenways_trip_last_reset:
+    name: TENWAYS trip last reset
+    has_date: true
+    has_time: true
+```
+
+```yaml
+- id: tenways_daily_trip_reset
+  alias: TENWAYS reset trip once a day
+  triggers:
+    - trigger: state
+      entity_id: sensor.longtail_duo_last_successful_read
+      not_from: [unavailable, unknown]
+      not_to: [unavailable, unknown]
+  conditions:
+    - condition: template
+      value_template: >-
+        {{ this.attributes.last_triggered is none
+           or now() - this.attributes.last_triggered > timedelta(hours=1) }}
+    - condition: template
+      value_template: >-
+        {% set ts = state_attr('input_datetime.tenways_trip_last_reset', 'timestamp') %}
+        {{ ts is none or as_local(as_datetime(ts)).date() < now().date() }}
+  actions:
+    - delay: "00:00:05"
+    # raises an error if the bike does not acknowledge; then the step below is skipped
+    - action: button.press
+      target:
+        entity_id: button.longtail_duo_reset_trip
+    - action: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.tenways_trip_last_reset
+      data:
+        timestamp: "{{ now().timestamp() }}"
+  mode: single
+  max_exceeded: silent
+```
+
 ## Distance per period and ride log
 
 The **Odometer** is a `total_increasing` sensor, so Home Assistant keeps long-term statistics for it. A statistics graph shows the distance per day, week or month:
@@ -120,7 +170,7 @@ For a **ride log in a calendar** (start, end, distance, duration, average speed,
 ## Related projects
 
 - **[tenways-bridge](https://github.com/stein155/tenways-bridge)** is an ESPHome firmware for an ESP32 that sits where the bike is parked, connects to the bike by itself and reports to Home Assistant. It supports more display types (Nordic UART and King Meter, including an encrypted session) and can switch the light. It lists the Longtail Duo as experimental and builds on our protocol notes. Choose it if you want a dedicated device and do not mind its firmware.
-- **This integration** uses Home Assistant's own Bluetooth stack, so a standard ESPHome Bluetooth proxy with active connections is enough, and it only reads (no commands are sent to the bike).
+- **This integration** uses Home Assistant's own Bluetooth stack, so a standard ESPHome Bluetooth proxy with active connections is enough, and it only reads, except for the clock sync and clearing the trip, each sent only when its button is pressed (by you or an automation); there is no unlock, light or configuration command.
 
 Both are unofficial and not affiliated with TENWAYS.
 
