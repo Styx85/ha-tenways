@@ -164,13 +164,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                     _LOGGER.debug('King Meter exchange timed out (%s)', self.address)
                     telemetry = {}
                 read_ok = read_ok or bool(telemetry)
-                live = {key: telemetry.pop(key, None) for key in LIVE_FIELDS if key != 'rssi'}
-                self._last.update(telemetry)
-                if telemetry and self.totals is not None:
-                    self.totals.async_update(
-                        telemetry.get('ride_seconds'), telemetry.get('odometer'), telemetry.get('max_speed'),
-                        telemetry.get('trip_distance'),
-                    )
+                live = self._account(telemetry)
                 if telemetry:
                     # Right after the read, in the same connection: the bike may leave range soon.
                     await self._async_automatic_writes(bike)
@@ -238,6 +232,8 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         if totals is None or not (self._auto_clock or self._trip_reset != TRIP_RESET_OFF):
             return
         now = dt_util.now()
+        # The trip first, right after the read: nothing ridden in between can be lost.
+        await self._async_automatic_trip_reset(bike, now, new_session)
         if self._auto_clock and totals.clock_due(now):
             try:
                 await asyncio.wait_for(bike.set_clock(now), KING_METER_TIMEOUT_SECONDS)
@@ -247,6 +243,10 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
             else:
                 _LOGGER.info("Set the clock of %s to %s (automatic)", self.address, now)
                 totals.async_clock_set(now)
+
+    async def _async_automatic_trip_reset(self, bike: TenwaysBike, now: datetime, new_session: bool) -> None:
+        totals = self.totals
+        assert totals is not None
         if not self._trip_reset_wanted(now, new_session):
             return
         # The read above already took the trip into HA's totals. An empty trip needs no write,
@@ -276,9 +276,25 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         # Per ride: the first read after the bike appeared (switched on, or back in range).
         return self._trip_reset == TRIP_RESET_RIDE and new_session and totals.trip_reset_allowed(now)
 
+    def _account(self, telemetry: dict) -> dict:
+        """Keep a status read's values and add it to the totals; returns the live values."""
+        live = {key: telemetry.pop(key, None) for key in LIVE_FIELDS if key != 'rssi'}
+        self._last.update(telemetry)
+        if telemetry and self.totals is not None:
+            self.totals.async_update(
+                telemetry.get('ride_seconds'), telemetry.get('odometer'), telemetry.get('max_speed'),
+                telemetry.get('trip_distance'),
+            )
+        return live
+
     async def async_reset_trip(self) -> None:
-        """Clear the bike's trip (distance, time, max and average speed). Needs the bike in range."""
-        await self._async_write(lambda bike: bike.reset_trip(), "trip_reset_failed")
+        """Read the trip into HA, then clear it (distance, time, max and average speed), in one connection."""
+
+        async def read_then_clear(bike: TenwaysBike) -> None:
+            self._account(await self._async_read_king_meter(bike))
+            await bike.reset_trip()
+
+        await self._async_write(read_then_clear, "trip_reset_failed")
         _LOGGER.info("Cleared the trip of %s", self.address)
         if self.totals is not None:
             self.totals.async_trip_reset_done(dt_util.now())

@@ -53,12 +53,11 @@ Settings → Devices & services → TENWAYS → Configure:
   - *Each time the bike appears:* at the first read after every switch-on, and when the bike comes back into range (then the display shows 0 after a ride; HA has read it just before).
 - **Set the clock automatically:** in the same connection as a read, after a daylight saving change, every 90 days and when first enabled.
 
-A failed automatic write is retried on the next reads, at most three times a day.
+A failed automatic write is tried again on later reads, at most three attempts a day. The **Reset trip** button also reads the trip into HA first, in the same connection.
 
 ## Automation hints
 
 The options above replace the first two automations; they remain as examples for your own variants.
-
 
 - **Set the clock after a daylight saving change** or every 90 days, at the first successful read after it: [example](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md#example-set-the-clock-automatically).
 - **A fresh trip every day** on the display, cleared after the first successful read of the day: [example](https://github.com/Styx85/ha-tenways/blob/main/docs/automations.md#example-a-fresh-trip-every-day).

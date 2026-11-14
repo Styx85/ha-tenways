@@ -3,6 +3,7 @@ import asyncio
 from datetime import datetime, timedelta
 import time
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 from unittest.mock import patch
 
 from bleak import BleakClient
@@ -301,11 +302,11 @@ CLEAR_TRIP = bytes.fromhex("63 00 04 01 2d 01 01 63 e8 45")
 
 async def test_reset_trip_sends_the_app_frame_and_disconnects(hass, advertising):
     coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
-    bike = FakeBike(replies={CLEAR_TRIP: CLEAR_TRIP})
+    bike = FakeBike(replies={STATUS_REQUEST: STATUS_REPLY, INFO_REQUEST: INFO_REPLY, CLEAR_TRIP: CLEAR_TRIP})
     with patch("custom_components.tenways.coordinator.establish_connection", return_value=bike), \
          patch.object(TenwaysCoordinator, "async_request_refresh") as refresh:
         await coordinator.async_reset_trip()
-    assert bike.writes == [CLEAR_TRIP]
+    assert bike.writes == [INFO_REQUEST, STATUS_REQUEST, CLEAR_TRIP]  # read into HA first
     assert not bike.connected
     refresh.assert_awaited_once()
 
@@ -365,7 +366,7 @@ async def test_poll_waits_for_a_clock_sync_in_progress(hass, advertising):
 ZERO_TRIP_REPLY = build_frame(TYPE_READ, CMD_STATUS, STATUS_REPLY[4:-3]
     .replace(bytes.fromhex("09 04 00 00 04 b1"), bytes.fromhex("09 04 00 00 00 00"))
     .replace(bytes.fromhex("0a 04 00 00 85 44"), bytes.fromhex("0a 04 00 00 00 00")))
-CLOCK_MOMENT = datetime(2026, 10, 18, 14, 32, 18, tzinfo=dt_util.get_default_time_zone())
+CLOCK_MOMENT = datetime(2026, 10, 18, 14, 32, 18, tzinfo=ZoneInfo("US/Pacific"))  # summer time
 
 
 async def _refresh_with_options(hass, *bikes, trip_reset="off", auto_clock=False, at=CLOCK_MOMENT, between=None):
@@ -436,7 +437,7 @@ async def test_auto_clock_once_then_after_a_time_change(hass, advertising):
     assert second.writes == [STATUS_REQUEST]
     assert totals.clock_due(CLOCK_MOMENT + timedelta(days=91))
     assert not totals.clock_due(CLOCK_MOMENT + timedelta(days=1))
-    winter = datetime(2026, 11, 1, 12, 0, tzinfo=dt_util.get_default_time_zone())  # after the change
+    winter = datetime(2026, 11, 1, 12, 0, tzinfo=ZoneInfo("US/Pacific"))  # after the change
     assert winter.utcoffset() != CLOCK_MOMENT.utcoffset()
     assert totals.clock_due(winter)
 
