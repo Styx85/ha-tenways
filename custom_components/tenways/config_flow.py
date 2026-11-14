@@ -15,7 +15,7 @@ from homeassistant.helpers.selector import (
 from tenways_ble.const import TENWAYS_SERVICE_UUID
 
 from .const import (
-    CONF_ADDRESS, CONF_POLL_SECONDS, DOMAIN, MAX_POLL_SECONDS, MIN_POLL_SECONDS, NAME_PREFIX,
+    CONF_ADDRESS, CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE, DOMAIN, MAX_POLL_SECONDS, MIN_POLL_SECONDS, NAME_PREFIX,
     POLL_SECONDS,
 )
 
@@ -105,14 +105,17 @@ class TenwaysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class TenwaysOptionsFlow(OptionsFlow):
-    """Adjust how often HA connects to the bike."""
+    """Adjust how often HA connects to the bike, and the ride time from before HA counted."""
 
     async def async_step_init(self, user_input: dict | None = None) -> ConfigFlowResult:
         if user_input is not None:
             return self.async_create_entry(data=user_input)
-        current = self.config_entry.options.get(CONF_POLL_SECONDS, POLL_SECONDS)
+        options = self.config_entry.options
         return self.async_show_form(step_id="init", data_schema=vol.Schema({
-            vol.Required(CONF_POLL_SECONDS, default=current): vol.All(
+            vol.Required(CONF_POLL_SECONDS, default=options.get(CONF_POLL_SECONDS, POLL_SECONDS)): vol.All(
                 vol.Coerce(int), vol.Range(min=MIN_POLL_SECONDS, max=MAX_POLL_SECONDS)
+            ),
+            vol.Required(CONF_RIDE_HOURS_BEFORE, default=options.get(CONF_RIDE_HOURS_BEFORE, 0)): vol.All(
+                vol.Coerce(float), vol.Range(min=0, max=100000)
             ),
         }))

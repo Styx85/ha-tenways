@@ -1,9 +1,9 @@
-"""TENWAYS read-only battery and Bluetooth diagnostic sensors."""
+"""TENWAYS sensors: values read from the bike, and totals HA computes from them."""
 from __future__ import annotations
 
 from datetime import datetime
 
-from homeassistant.components.sensor import RestoreSensor, SensorDeviceClass, SensorStateClass
+from homeassistant.components.sensor import RestoreSensor, SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.const import PERCENTAGE, SIGNAL_STRENGTH_DECIBELS_MILLIWATT, EntityCategory, UnitOfPower, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -40,7 +40,12 @@ async def async_setup_entry(
         TenwaysSensor(entry, coordinator, "raw_4f", "raw_4f"),
         TenwaysSensor(entry, coordinator, "model", "model"),
         TenwaysSensor(entry, coordinator, "manufacturer", "manufacturer"),
+        *(TenwaysTotalSensor(entry, coordinator, key) for key in TOTAL_SENSORS),
     ])
+
+
+# Computed by HA (totals.py); the bike itself only knows the current trip.
+TOTAL_SENSORS = ("total_ride_time", "average_speed_total", "max_speed_total", "ride_time_today", "distance_today")
 
 
 class TenwaysSensor(TenwaysEntity, RestoreSensor):
@@ -138,4 +143,50 @@ class TenwaysSensor(TenwaysEntity, RestoreSensor):
     def available(self) -> bool:
         if self._field in LIVE_FIELDS and not self.coordinator.last_update_success:
             return False
+        return self.native_value is not None
+
+
+class TenwaysTotalSensor(TenwaysEntity, SensorEntity):
+    """A value over all trips or for today, computed and stored by HA."""
+
+    def __init__(self, entry: TenwaysConfigEntry, coordinator: TenwaysCoordinator, key: str) -> None:
+        super().__init__(entry, coordinator, key)
+        self._key = key
+        if key in ("total_ride_time", "ride_time_today"):
+            self._attr_native_unit_of_measurement = UnitOfTime.SECONDS
+            self._attr_suggested_unit_of_measurement = UnitOfTime.HOURS
+            self._attr_suggested_display_precision = 2
+            self._attr_device_class = SensorDeviceClass.DURATION
+            # Grows; "today" drops to 0 at midnight, which counts as a new cycle.
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+            self._attr_icon = "mdi:timer-outline"
+        elif key == "distance_today":
+            self._attr_native_unit_of_measurement = "km"
+            self._attr_device_class = SensorDeviceClass.DISTANCE
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        else:
+            self._attr_native_unit_of_measurement = "km/h"
+            self._attr_device_class = SensorDeviceClass.SPEED
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(self.coordinator.totals.async_add_listener(self.async_write_ha_state))
+
+    @property
+    def native_value(self) -> float | None:
+        totals = self.coordinator.totals
+        if self._key == "total_ride_time":
+            return totals.total_ride_s
+        if self._key == "ride_time_today":
+            return totals.day_ride_s
+        if self._key == "distance_today":
+            return totals.day_distance
+        if self._key == "max_speed_total":
+            return totals.max_speed
+        odometer = self.coordinator.data.odometer if self.coordinator.data else None
+        return totals.average_speed(odometer)
+
+    @property
+    def available(self) -> bool:
         return self.native_value is not None

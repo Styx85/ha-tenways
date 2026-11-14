@@ -10,7 +10,7 @@
       },
       "bluetooth_confirm": {
         "title": "Add TENWAYS bicycle",
-        "description": "Add {name}? Values are read only; no commands are sent to the bike."
+        "description": "Add {name}? Values are read; the bike only receives the clock sync and the trip reset, and only when their button is pressed."
       }
     },
     "error": {
@@ -28,7 +28,11 @@
         "title": "TENWAYS options",
         "description": "Each poll opens a short BLE connection. The TENWAYS app cannot connect while HA is polling.",
         "data": {
-          "poll_seconds": "Poll interval (seconds)"
+          "poll_seconds": "Poll interval (seconds)",
+          "ride_hours_before": "Ride time before HA counted (hours)"
+        },
+        "data_description": {
+          "ride_hours_before": "Total ride time = this value plus all trips HA has read since. Enter the bike's ride time from before the trip was first cleared, so that the overall average (odometer ÷ total ride time) is right."
         }
       }
     }
@@ -97,6 +101,21 @@
       },
       "manufacturer": {
         "name": "BLE manufacturer"
+      },
+      "total_ride_time": {
+        "name": "Total ride time"
+      },
+      "average_speed_total": {
+        "name": "Average speed overall"
+      },
+      "max_speed_total": {
+        "name": "Maximum speed overall"
+      },
+      "ride_time_today": {
+        "name": "Ride time today"
+      },
+      "distance_today": {
+        "name": "Distance today"
       }
     },
     "binary_sensor": {
@@ -113,6 +132,9 @@
       },
       "reset_trip": {
         "name": "Reset trip"
+      },
+      "reset_max_speed_total": {
+        "name": "Reset overall maximum speed"
       }
     }
   },

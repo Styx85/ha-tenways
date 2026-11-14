@@ -15,3 +15,5 @@ MIN_POLL_SECONDS = 30
 MAX_POLL_SECONDS = 3600
 ADVERTISEMENT_MAX_AGE_SECONDS = 120
 KING_METER_TIMEOUT_SECONDS = 20  # whole King Meter exchange; the library's own timeout does not cover a stalled write
+# Ride time before HA started counting (hours), e.g. from before the trip was first cleared.
+CONF_RIDE_HOURS_BEFORE = "ride_hours_before"
