@@ -145,3 +145,11 @@ async def test_unsupported_model_is_not_listed(hass):
     assert schema_keys == {CONF_ADDRESS}
     # Nothing to choose from: a plain text field, not a dropdown of bikes.
     assert result["data_schema"].schema[next(iter(result["data_schema"].schema))] is str
+
+
+async def test_typed_address_of_unsupported_model_is_explained(hass):
+    with _visible(_advertisement("AGO AIR", [TENWAYS_SERVICE_UUID])):
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_ADDRESS: "e8:88:6c:31:b3:0d"})
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "unsupported_model"

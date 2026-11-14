@@ -2,7 +2,7 @@
 
 # TENWAYS BLE for Home Assistant — experimental
 
-Unofficial integration for TENWAYS e-bikes over Bluetooth, built on the [`tenways-ble`](https://github.com/Styx85/tenways-ble) library. It reads the bike through Home Assistant's own Bluetooth stack: a local adapter or an ESPHome Bluetooth proxy with active connections. No cloud, no extra hardware. **Tested on a Longtail Duo** with Home Assistant 2026.11; other King Meter models are supported untested, see [Supported bikes](#supported-bikes).
+Unofficial integration for TENWAYS e-bikes over Bluetooth, built on the [`tenways-ble`](https://github.com/Styx85/tenways-ble) library. It reads the bike through Home Assistant's own Bluetooth stack: a local adapter or an ESPHome Bluetooth proxy with active connections. No cloud, no extra hardware. **Tested on a Longtail Duo** with Home Assistant 2026.11; other King Meter models may work (untested), see [Supported bikes](#supported-bikes).
 
 ## Features
 
@@ -16,23 +16,23 @@ No unlock, light, firmware or configuration commands. Details on every entity, w
 
 ## Supported bikes
 
-The integration picks a profile from the name the bike advertises, the way the TENWAYS app picks its driver (app versions 2.18.0 and 2.19.0, analysed statically, see [tenways-ble](https://github.com/Styx85/tenways-ble/blob/main/docs/RESEARCH.md#driver-per-model)). Every King Meter model gets everything the Longtail Duo has: all sensors, the totals, **Set clock** and **Reset trip**.
+The integration picks a profile from the name the bike advertises, the way the TENWAYS app picks its driver (app versions 2.18.0 and 2.19.0, analysed statically, see [tenways-ble](https://github.com/Styx85/tenways-ble/blob/main/docs/RESEARCH.md#driver-per-model)). Every King Meter model gets everything the Longtail Duo has (all sensors, the totals, **Set clock** and **Reset trip**), untested except on the Duo. The app itself sends the clock only to AGOX, AGOT, CARGO and the Longtail Duo, and has clearing the trip built into the AGO base and the CGO800 driver.
 
 | Advertised name | App driver | Status | Notes |
 |---|---|---|---|
 | `Longtail Duo` | long tail duo/CGO009_D | ✅ **tested** | all features confirmed on the bike |
-| `CGO009_D` | long tail duo/CGO009_D | 🧪 untested | same requests as the Longtail Duo |
-| `CGO009` (not `CGO009L`) | 009 | 🧪 untested | also reports an assist level (`0x12`), not yet a sensor |
-| `CGO800`, `CGO800 Plus`, `CGO800S` | 800s | 🧪 untested | checksum low byte first, odometer in whole km; some CGO800 Plus displays need the encrypted session and then do not answer |
-| `AGO`, `AGOX`, `AGOT`, `CARGO`, `CGO009L` | ago (the app's default) | 🧪 untested | |
+| `CGO009_D` | long tail duo/CGO009_D | 🧪 untested | same requests as the Longtail Duo; the app sends it no clock |
+| `CGO009` (not `CGO009L`) | 009 | 🧪 untested | also reports an assist level (`0x12`), not yet a sensor; the app sends it no clock |
+| `CGO800`, `CGO800 Plus`, `CGO800S` | 800s | 🧪 untested | checksum low byte first, odometer in whole km; some CGO800 Plus displays need the encrypted session and then do not answer; the app sends it no clock |
+| `AGO`, `AGOX`, `AGOT`, `CARGO`, `CGO009L` | ago (the app's default) | 🧪 untested | the app sends the clock to AGOX, AGOT and CARGO only |
 | `AGO AIR`, `Wayfarer_B`, `AGOX_D`, `AGOT_D`, `CGO COMPACT_D`, `AGO AIR-BELT_D` | AGO AIR | ⛔ not supported | encrypted King Meter session |
 | `CGO600_D` | CGO600_D | ⛔ not supported | `0x57` frames, not King Meter |
 | `CGO600`, `CGO600 Pro`, `CGO600 PLUS` | Nordic UART | ⛔ not supported | not King Meter |
 | `DM…` | DM | ⛔ not supported | separate driver, not analysed |
 
 - **Untested** means the requests follow the app, but no such bike has answered yet. The integration logs a warning with a link here. Please open an issue with a diagnostics download (Settings → Devices & services → TENWAYS → ⋮ → Download diagnostics) and say which values match the display.
-- **Not supported** models are not offered; adding one explains why. With a debug log, or an HCI capture of the TENWAYS app with that bike (never publish it raw; it contains other devices' traffic), they could be added. Until then, [tenways-bridge](https://github.com/stein155/tenways-bridge) (ESPHome firmware for an ESP32) has profiles for CGO600, CGO800 and the encrypted displays.
-- HA discovers a bike that advertises one of the names above or the King Meter service (`43480001-…`). Otherwise add **TENWAYS BLE** by hand with the bike's Bluetooth address; an unknown name then uses the Longtail Duo's requests.
+- **Not supported** models are not offered; adding one by its address while it advertises explains why, and an entry that sees such a name logs a warning. With a debug log, or an HCI capture of the TENWAYS app with that bike (never publish it raw; it contains other devices' traffic), they could be added. Until then, [tenways-bridge](https://github.com/stein155/tenways-bridge) (ESPHome firmware for an ESP32) has profiles for CGO600, CGO800 and the encrypted displays.
+- HA discovers a bike that advertises a name starting with `Longtail Duo`, `CGO009`, `CGO800`, `AGO` or `CARGO`, or the King Meter service (`43480001-…`). Otherwise add **TENWAYS BLE** by hand with the bike's Bluetooth address; an unknown name then uses the Longtail Duo's requests.
 
 ## Installation
 

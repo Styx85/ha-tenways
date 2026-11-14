@@ -87,14 +87,24 @@ class TenwaysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input: dict | None = None) -> ConfigFlowResult:
         """Pick a discovered bike or type its address; typing stays possible when bikes are visible."""
         configured = self._async_current_ids()
-        found = {
-            info.address.upper(): info.name or f"TENWAYS {info.address[-5:].upper()}"
+        seen = {
+            info.address.upper(): info
             for info in bluetooth.async_discovered_service_info(self.hass, connectable=True)
-            if has_telemetry(info) and not unsupported_reason(info) and info.address.upper() not in configured
+        }
+        found = {
+            address: info.name or f"TENWAYS {address[-5:]}"
+            for address, info in seen.items()
+            if has_telemetry(info) and not unsupported_reason(info) and address not in configured
         }
         if user_input is not None:
             address = user_input[CONF_ADDRESS].strip().upper()
             if MAC_PATTERN.fullmatch(address):
+                # A typed address of a visible, unsupported model: explain instead of polling in vain.
+                if (info := seen.get(address)) is not None and (reason := unsupported_reason(info)):
+                    return self.async_abort(
+                        reason="unsupported_model",
+                        description_placeholders={"name": info.name or address, "reason": reason},
+                    )
                 await self.async_set_unique_id(address)
                 self._abort_if_unique_id_configured()
                 name = found.get(address, f"TENWAYS {address[-5:]}")

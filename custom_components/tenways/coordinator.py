@@ -21,7 +21,7 @@ from .const import (
     ADVERTISEMENT_MAX_AGE_SECONDS, DOMAIN, BATTERY_UUID, DEVICE_INFO_UUIDS,
     KING_METER_TIMEOUT_SECONDS,
 )
-from .const import ISSUES_URL
+from .const import ISSUES_URL, KING_METER_NAME_PREFIXES
 from .models import model_profile
 from .totals import TenwaysTotals
 
@@ -109,7 +109,10 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
 
     async def _async_update_data(self) -> TenwaysData:
         info = bluetooth.async_last_service_info(self.hass, self.address, connectable=True)
-        if info is not None and info.name and info.name != self.model_name and model_profile(info.name).supported:
+        # The advertised name decides the model, also an unsupported one (so its warning is logged).
+        if info is not None and info.name and info.name != self.model_name and (
+            info.name.startswith(KING_METER_NAME_PREFIXES) or not model_profile(info.name).supported
+        ):
             self.model_name = info.name
         now = time.monotonic()
         # BluetoothServiceInfoBleak.time is monotonic seconds, NOT Unix time.

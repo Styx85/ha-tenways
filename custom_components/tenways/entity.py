@@ -4,7 +4,7 @@ from __future__ import annotations
 from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_ADDRESS, DOMAIN
+from .const import CONF_ADDRESS, DOMAIN, KING_METER_NAME_PREFIXES
 from .coordinator import TenwaysCoordinator
 
 
@@ -23,5 +23,8 @@ class TenwaysEntity(CoordinatorEntity[TenwaysCoordinator]):
             connections={(CONNECTION_BLUETOOTH, address)},
             name=entry.title,
             manufacturer="TENWAYS",
-            model=coordinator.profile.name,
+            # The advertised model name, or the app driver for a bike added by address.
+            model=coordinator.model_name
+            if coordinator.model_name and coordinator.model_name.startswith(KING_METER_NAME_PREFIXES)
+            else coordinator.profile.name,
         )
