@@ -1,7 +1,7 @@
 """TENWAYS Bluetooth visibility and light."""
 from __future__ import annotations
 
-from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
+from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -34,7 +34,9 @@ class TenwaysVisible(TenwaysEntity, BinarySensorEntity):
 class TenwaysLight(TenwaysEntity, BinarySensorEntity):
     """Light switch state from status field 0x11; unknown while the bike is unreachable."""
 
-    _attr_device_class = BinarySensorDeviceClass.LIGHT
+    # No device class: LIGHT means "light detected" (ambient light), which shows the
+    # bike's headlight as "Light detected / No light" instead of "On / Off".
+    _attr_icon = "mdi:car-light-high"
 
     @property
     def is_on(self) -> bool | None:

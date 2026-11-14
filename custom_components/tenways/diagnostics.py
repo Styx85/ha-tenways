@@ -11,7 +11,8 @@ from homeassistant.core import HomeAssistant
 from . import TenwaysConfigEntry
 from .const import CONF_ADDRESS
 
-TO_REDACT = {CONF_ADDRESS, "unique_id", "serial"}
+# discovery_keys holds the Bluetooth address as the bluetooth discovery key.
+TO_REDACT = {CONF_ADDRESS, "unique_id", "serial", "discovery_keys"}
 
 
 async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: TenwaysConfigEntry) -> dict[str, Any]:

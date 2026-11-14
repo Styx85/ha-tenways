@@ -1,7 +1,7 @@
 <p align="center"><img src="custom_components/tenways/brand/icon@2x.png" alt="" width="160"></p>
 
 # TENWAYS BLE for Home Assistant — experimental
-Unofficial HACS custom integration. The King Meter BLE protocol of the Longtail Duo is implemented in the [`tenways-ble`](https://github.com/Styx85/tenways-ble) library and verified byte-for-byte against an Android Bluetooth HCI capture of the official TENWAYS app. **Live operation in Home Assistant has not yet been confirmed on the bike.**
+Unofficial HACS custom integration. The King Meter BLE protocol of the Longtail Duo is implemented in the [`tenways-ble`](https://github.com/Styx85/tenways-ble) library and verified byte-for-byte against an Android Bluetooth HCI capture of the official TENWAYS app. **Tested live on a Longtail Duo with Home Assistant 2026.11:** battery, odometer, trip, ride time, light, remaining range and setting the clock agree with the bike's display. Current speed and power have not yet been checked while riding.
 
 ## Installation
 
@@ -11,13 +11,18 @@ The bike advertises two endpoints. Only **Longtail Duo** (King Meter service) de
 
 ## Exposed sensors
 
-- Traction battery (%) from proprietary status field `0x0F`; previously observed 68%.
-- Odometer (km, field `0x0C`), trip distance (km, field `0x09`), maximum and average ride speed (km/h), accumulated ride time (shown in hours).
+- Traction battery (%) from proprietary status field `0x0F`; 48 % in HA with 3 of 5 bars on the display.
+- Odometer (km, field `0x0C`), trip distance (km, field `0x09`), maximum and average ride speed (km/h), accumulated ride time (shown in hours). Odometer and trip match the display; ride time and average speed agree with the distance.
   On the Longtail Duo these are lifetime counters: the trip values equal the odometer and keep counting until the trip is reset in the TENWAYS app (this integration never resets it). Odometer, trip distance and ride time are `total_increasing`, so HA's statistics give distance and riding hours per day, week or month.
 - Current speed from field `0x06` (disabled by default; read 0 while parked, not yet confirmed while riding).
 - Firmware (`2.20.16` observed; the app shows `1.4.0` elsewhere, so this may be another component) and serial number, read once per HA start.
-- Light on/off (binary sensor) from field `0x11`, identified in HA (0 = off).
-- Remaining range from field `0x0B` (`remainingRange` in the TENWAYS app). It reads 60, 54, 50, 45, 43 for assist levels 1–5 at 68 % and is not available at level 0, where the app also shows none. The unit is not stated in the app; km is probable.
+- Light on/off (binary sensor) from field `0x11` (0 = off); follows the headlight, also with automatic light.
+- Remaining range from field `0x0B` (`remainingRange` in the TENWAYS app). It depends on the assist level and falls in proportion to the battery, and is not available at level 0, where the app also shows none. Neither the display nor the app shows it as a number and the unit is not stated; km is probable.
+
+  | Assist level | 1 | 2 | 3 | 4 | 5 |
+  |---|---|---|---|---|---|
+  | at 68 % | 60 | 54 | 50 | 45 | 43 |
+  | at 48 % | 43 | 38 | 35 | 32 | 31 |
 - **Unverified:** power in W from field `0x23` (`power` in the app, values above 3000 ignored); 0 while parked, not yet seen while riding.
 - Disabled diagnostic sensors for the raw status fields `0x0B`, `0x11`, `0x23`, `0x4F`; `0x4F` is not interpreted.
 - Standard Bluetooth battery (`0x2A19`): **not the traction battery**; on the Longtail Duo it counts up by 1 roughly every read while the bike is on and resets to 0 when it is switched off, so it looks like a counter. Disabled diagnostic sensor.
@@ -30,8 +35,8 @@ No unlock, light, power, firmware, configuration or pairing commands are impleme
 - Sensor values should be considered experimental until confirmed live.
 - Firmware changes may require updating the command/parser.
 - The proprietary poll runs on any configured device exposing the King Meter service; other TENWAYS models are untested. Poll interval: five minutes by default, adjustable in the integration options (30–3600 s). Each poll opens a short BLE connection; the TENWAYS app cannot connect at the same time.
-- Bluetooth proxies must support active GATT connections.
-- HA only connects while the bike advertises (seen within the last 120 s). When it reappears after being off or out of range, HA polls immediately instead of waiting for the next interval. Whether the bike keeps advertising while switched off is not yet known.
+- Bluetooth proxies must support active GATT connections. At a weak signal (around −85 dBm) some reads time out; the values from the last good read stay.
+- HA only connects while the bike advertises (seen within the last 120 s). The bike stops advertising when it is switched off, so HA only reads it while it is on. When it reappears, HA polls immediately instead of waiting for the next interval. While HA is connected, the display shows a Bluetooth symbol.
 - While the bike is off, out of range or a read fails, every sensor keeps its last read value, also across HA restarts; "Last successful read" says when it was read. Only current speed, light, remaining range, power and signal strength become unavailable.
 - Live values (current speed, light, remaining range, power) lapse after two minutes without an advertisement instead of waiting for the next poll. "Last successful read" only moves when a valid reply arrived.
 - The integration offers a diagnostics download (Bluetooth address and serial number redacted); attach it to bug reports.
@@ -39,7 +44,7 @@ No unlock, light, power, firmware, configuration or pairing commands are impleme
 
 ## Setting the bike's clock
 
-The bike has no daylight saving and keeps showing summer time until it is set. The **Set clock** button (a configuration entity of the bike device) sends Home Assistant's local time to the bike, the same write the TENWAYS app makes. It sends nothing on its own; press it with the bike switched on and in range of an adapter or proxy, with the TENWAYS app closed. Press it again after each time change. **Not yet confirmed on a bike:** check the display after the first press. The frame matches a capture of the app byte for byte, but whether the bike takes local time as given and acknowledges it is still open; if the time is off, please report what the display shows.
+The bike has no daylight saving and keeps showing summer time until it is set. The **Set clock** button (a configuration entity of the bike device) sends Home Assistant's local time to the bike, the same write the TENWAYS app makes. It sends nothing on its own; press it with the bike switched on and in range of an adapter or proxy, with the TENWAYS app closed. Press it again after each time change. Confirmed on a Longtail Duo: after a press the display changed from summer time to the correct local time to the minute; the assist level and everything else stay as they are.
 
 ## Distance per period and ride log
 

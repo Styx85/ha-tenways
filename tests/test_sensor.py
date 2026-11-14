@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.discovery_flow import DiscoveryKey
 from pytest_homeassistant_custom_component.common import MockConfigEntry, mock_restore_cache_with_extra_data
 
 from custom_components.tenways.const import CONF_ADDRESS, DOMAIN
@@ -18,7 +19,10 @@ def _stored(entity_id, value, unit=None):
 
 
 async def _setup_without_bike(hass, stale=()):
-    entry = MockConfigEntry(domain=DOMAIN, data={CONF_ADDRESS: ADDRESS}, unique_id=ADDRESS, title="Longtail Duo")
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_ADDRESS: ADDRESS}, unique_id=ADDRESS, title="Longtail Duo",
+        discovery_keys={"bluetooth": (DiscoveryKey(domain="bluetooth", key=ADDRESS, version=1),)},
+    )
     entry.add_to_hass(hass)
     registry = er.async_get(hass)
     for suffix in stale:
