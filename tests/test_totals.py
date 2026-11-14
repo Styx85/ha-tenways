@@ -50,9 +50,53 @@ async def test_offset_and_implausible_maximum(hass):
     assert totals.total_ride_s == 7200
     assert totals.max_speed is None
     assert totals.average_speed(50.0) == 25.0
-    totals.async_update(0, 50.0, 20.0)
+    await totals.async_unload()
+
+
+async def test_reset_maximum_is_not_undone_by_the_same_trip(hass):
+    totals = TenwaysTotals(hass, "entry")
+    await totals.async_load()
+    totals.async_update(100, 10.0, 62.0, 5.0)  # implausible, but under 75 km/h
     totals.async_reset_max_speed()
+    totals.async_update(200, 11.0, 62.0, 6.0)  # same trip, same maximum: stays 0
     assert totals.max_speed == 0.0
+    totals.async_update(300, 12.0, 63.0, 7.0)  # exceeded within the trip: counts
+    assert totals.max_speed == 63.0
+    totals.async_reset_max_speed()
+    totals.async_update(50, 13.0, 20.0, 1.0)  # new trip: its maximum counts again
+    assert totals.max_speed == 20.0
+    await totals.async_unload()
+
+
+async def test_ride_time_drop_without_distance_drop_is_ignored(hass):
+    totals = TenwaysTotals(hass, "entry")
+    await totals.async_load()
+    totals.async_update(3600, 100.0, None, 20.0)
+    totals.async_update(0, 100.0, None, 20.0)  # spurious 0, trip distance unchanged
+    totals.async_update(3700, 101.0, None, 21.0)
+    assert totals.total_ride_s == 3700  # not counted twice
+    totals.async_update(60, 102.0, None, 1.0)  # both dropped: a real reset
+    assert totals.total_ride_s == 3760
+    await totals.async_unload()
+
+
+async def test_no_updates_after_unload(hass):
+    totals = TenwaysTotals(hass, "entry")
+    await totals.async_load()
+    totals.async_update(100, 10.0, None)
+    await totals.async_unload()
+    totals.async_update(500, 20.0, None)  # a read still in flight during a reload
+    again = TenwaysTotals(hass, "entry")
+    await again.async_load()
+    assert again.total_ride_s == 100
+    await again.async_unload()
+
+
+async def test_average_from_stored_odometer(hass):
+    totals = TenwaysTotals(hass, "entry")
+    await totals.async_load()
+    totals.async_update(3600, 20.0, None)
+    assert totals.average_speed() == 20.0  # before the first read after a restart
     await totals.async_unload()
 
 
@@ -60,6 +104,7 @@ async def test_day_values_reset_at_midnight(hass, freezer):
     freezer.move_to(_at(20))
     totals = TenwaysTotals(hass, "entry")
     await totals.async_load()
+    unsub = totals.async_track_midnight()
     totals.async_update(100, 10.0, None)
     totals.async_update(700, 15.0, None)
     assert (totals.day_ride_s, totals.day_distance) == (600, 5.0)
@@ -69,6 +114,7 @@ async def test_day_values_reset_at_midnight(hass, freezer):
     assert (totals.day_ride_s, totals.day_distance) == (0, 0.0)
     totals.async_update(900, 18.0, None)
     assert (totals.day_ride_s, totals.day_distance) == (200, 3.0)
+    unsub()
     await totals.async_unload()
 
 

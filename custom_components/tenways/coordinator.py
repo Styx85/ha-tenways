@@ -131,6 +131,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                 if telemetry and self.totals is not None:
                     self.totals.async_update(
                         telemetry.get('ride_seconds'), telemetry.get('odometer'), telemetry.get('max_speed'),
+                        telemetry.get('trip_distance'),
                     )
                 # Optional reads only when advertised as present in the GATT table.
                 for key, uuid in DEVICE_INFO_UUIDS.items():

@@ -160,10 +160,12 @@ Once the trip is cleared, the bike forgets its ride time, maximum and average. T
 |---|---|
 | Total ride time | the option *Ride time before HA counted* plus every increase of the trip's ride time; a lower value means the trip was cleared and counts again from 0 |
 | Average speed overall | odometer ÷ total ride time |
-| Maximum speed overall | highest trip maximum read; values above 75 km/h are ignored, as in the TENWAYS app. The disabled **Reset overall maximum speed** button sets it to 0 (sends nothing to the bike) |
+| Maximum speed overall | highest trip maximum read; values above 75 km/h are ignored, as in the TENWAYS app. The disabled **Reset overall maximum speed** button sets it to 0 (sends nothing to the bike); the current trip's maximum then only counts once it is exceeded or a new trip starts |
 | Ride time today, Distance today | increase of the trip's ride time and of the odometer since local midnight |
 
-On the first read the current trip counts as ridden. If the trip was cleared before you installed this version, enter the ride time from before that reset in the options (Settings → Devices & services → TENWAYS → Configure), in hours, so that the overall average is right.
+On the first read the current trip counts as ridden. If the trip was cleared before you installed this version, enter the ride time from before that reset in the options (Settings → Devices & services → TENWAYS → Configure), in hours, so that the overall average is right. Changing it later shows up in HA's long-term statistics of the total ride time as a one-off jump.
+
+A drop of the ride time only counts as a cleared trip if the trip distance dropped too; otherwise the reading is ignored, so a glitch cannot count the trip twice.
 
 HA only sees changes when it reads the bike: a ride after the last read of the evening counts for the day of the next read. Riding while the trip is cleared on the display and reading only afterwards also undercounts if the new trip has grown beyond the old one by then; with the **Reset trip** button HA knows about the reset.
 

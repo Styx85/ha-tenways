@@ -184,8 +184,7 @@ class TenwaysTotalSensor(TenwaysEntity, SensorEntity):
             return totals.day_distance
         if self._key == "max_speed_total":
             return totals.max_speed
-        odometer = self.coordinator.data.odometer if self.coordinator.data else None
-        return totals.average_speed(odometer)
+        return totals.average_speed(self.coordinator.data.odometer if self.coordinator.data else None)
 
     @property
     def available(self) -> bool:

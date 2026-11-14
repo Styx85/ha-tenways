@@ -32,6 +32,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TenwaysConfigEntry) -> b
     _remove_stale_entities(hass, entry)
     totals = TenwaysTotals(hass, entry.entry_id, entry.options.get(CONF_RIDE_HOURS_BEFORE, 0) * 3600)
     await totals.async_load()
+    entry.async_on_unload(totals.async_track_midnight())
     coordinator = TenwaysCoordinator(
         hass, entry.data[CONF_ADDRESS], entry.options.get(CONF_POLL_SECONDS, POLL_SECONDS), totals,
     )

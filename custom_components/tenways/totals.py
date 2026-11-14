@@ -32,6 +32,9 @@ class TotalsState:
     ride_s: float = 0.0  # ride time counted since tracking started (the offset option comes on top)
     last_trip_s: float | None = None  # trip ride time at the last read, None before the first
     max_speed: float | None = None
+    last_trip_km: float | None = None
+    last_trip_max: float | None = None
+    max_ignore_upto: float | None = None  # after a reset of the maximum: the trip maximum it discarded
     day: str | None = None  # local date the day values belong to
     day_ride_s: float = 0.0
     day_start_odometer: float | None = None
@@ -47,21 +50,22 @@ class TenwaysTotals:
         self.state = TotalsState()
         self.ride_offset_s = ride_offset_s
         self._listeners: list[CALLBACK_TYPE] = []
-        self._unsub_midnight: CALLBACK_TYPE | None = None
+        self._unloaded = False
 
     async def async_load(self) -> None:
         if stored := await self._store.async_load():
             known = TotalsState.__dataclass_fields__
             self.state = TotalsState(**{k: v for k, v in stored.items() if k in known})
         self._roll_day(dt_util.now().date())
-        self._unsub_midnight = async_track_time_change(
-            self._hass, self._async_midnight, hour=0, minute=0, second=0
-        )
+
+    @callback
+    def async_track_midnight(self) -> CALLBACK_TYPE:
+        """Start the day values afresh at local midnight; returns the unsubscribe callback."""
+        return async_track_time_change(self._hass, self._async_midnight, hour=0, minute=0, second=0)
 
     async def async_unload(self) -> None:
-        if self._unsub_midnight is not None:
-            self._unsub_midnight()
-            self._unsub_midnight = None
+        """Final save; a read still in flight must not overwrite the next instance's data."""
+        self._unloaded = True
         await self._store.async_save(asdict(self.state))
 
     async def async_remove(self) -> None:
@@ -95,9 +99,11 @@ class TenwaysTotals:
             return None
         return round(max(0.0, s.last_odometer - s.day_start_odometer), 2)
 
-    def average_speed(self, odometer: float | None) -> float | None:
+    def average_speed(self, odometer: float | None = None) -> float | None:
         """Odometer over total ride time; both count from kilometre 0 when the offset is right."""
         total = self.total_ride_s
+        if odometer is None:
+            odometer = self.state.last_odometer  # stored, so available before the first read after a restart
         if odometer is None or not total:
             return None
         return round(odometer * 3600 / total, 1)
@@ -106,39 +112,68 @@ class TenwaysTotals:
 
     @callback
     def async_update(
-        self, ride_s: float | None, odometer: float | None, trip_max: float | None
+        self, ride_s: float | None, odometer: float | None, trip_max: float | None,
+        trip_km: float | None = None,
     ) -> None:
         """Account one successful read of the bike."""
+        if self._unloaded:
+            return
         s = self.state
         self._roll_day(dt_util.now().date())
         if ride_s is not None:
             if s.last_trip_s is None:
                 # First read: the trip holds everything since its last reset.
                 s.ride_s = float(ride_s)
-            else:
-                # A lower value means the trip was cleared and counts again from 0.
-                delta = ride_s - s.last_trip_s if ride_s >= s.last_trip_s else ride_s
+                s.last_trip_s = float(ride_s)
+            elif ride_s >= s.last_trip_s:
+                delta = ride_s - s.last_trip_s
                 s.ride_s += delta
                 s.day_ride_s += delta
-            s.last_trip_s = float(ride_s)
+                s.last_trip_s = float(ride_s)
+            elif trip_km is None or s.last_trip_km is None or trip_km < s.last_trip_km:
+                # Ride time and trip distance both lower: the trip was cleared and counts again from 0.
+                s.ride_s += ride_s
+                s.day_ride_s += ride_s
+                s.last_trip_s = float(ride_s)
+                s.max_ignore_upto = None
+            else:
+                # Only the ride time dropped: not a reset; ignore it rather than count the trip twice.
+                _LOGGER.debug("Ignoring a drop of the trip ride time without a drop of the trip distance")
+        if trip_km is not None:
+            s.last_trip_km = trip_km
         if odometer is not None:
             if s.day_start_odometer is None:
                 s.day_start_odometer = odometer
             s.last_odometer = odometer
-        if trip_max is not None and 0 <= trip_max <= MAX_PLAUSIBLE_SPEED_KMH:
-            s.max_speed = max(s.max_speed or 0.0, trip_max)
+        if trip_max is not None:
+            s.last_trip_max = trip_max
+            if (
+                0 <= trip_max <= MAX_PLAUSIBLE_SPEED_KMH
+                and (s.max_ignore_upto is None or trip_max > s.max_ignore_upto)
+            ):
+                s.max_speed = max(s.max_speed or 0.0, trip_max)
         self._changed()
 
     @callback
     def async_trip_cleared(self) -> None:
         """The trip was cleared by HA; the next read counts from 0."""
-        if self.state.last_trip_s is not None:
-            self.state.last_trip_s = 0.0
-            self._changed()
+        if self._unloaded:
+            return
+        s = self.state
+        if s.last_trip_s is not None:
+            s.last_trip_s = 0.0
+        if s.last_trip_km is not None:
+            s.last_trip_km = 0.0
+        s.max_ignore_upto = None
+        self._changed()
 
     @callback
     def async_reset_max_speed(self) -> None:
+        """Set the overall maximum to 0; the current trip's maximum stays ignored until it is exceeded."""
+        if self._unloaded:
+            return
         self.state.max_speed = 0.0
+        self.state.max_ignore_upto = self.state.last_trip_max
         self._changed()
 
     @callback
@@ -156,6 +191,8 @@ class TenwaysTotals:
         return True
 
     def _changed(self) -> None:
+        if self._unloaded:
+            return
         self._store.async_delay_save(lambda: asdict(self.state), SAVE_DELAY_SECONDS)
         for update in list(self._listeners):
             update()
