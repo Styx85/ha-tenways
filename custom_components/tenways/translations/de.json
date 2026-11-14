@@ -30,10 +30,14 @@
         "description": "Jede Abfrage baut kurz eine BLE-Verbindung auf. Währenddessen kann sich die TENWAYS-App nicht verbinden.",
         "data": {
           "poll_seconds": "Abfrageintervall (Sekunden)",
-          "ride_hours_before": "Fahrzeit vor der Zählung durch HA (Stunden)"
+          "ride_hours_before": "Fahrzeit vor der Zählung durch HA (Stunden)",
+          "daily_trip_reset": "Trip einmal täglich zurücksetzen",
+          "auto_clock": "Uhr automatisch stellen"
         },
         "data_description": {
-          "ride_hours_before": "Gesamtfahrzeit = dieser Wert plus alle Trips, die HA seitdem gelesen hat. Die Fahrzeit des Rads von vor dem ersten Trip-Reset eintragen, damit der Gesamtdurchschnitt (Kilometerstand ÷ Gesamtfahrzeit) stimmt."
+          "ride_hours_before": "Gesamtfahrzeit = dieser Wert plus alle Trips, die HA seitdem gelesen hat. Die Fahrzeit des Rads von vor dem ersten Trip-Reset eintragen, damit der Gesamtdurchschnitt (Kilometerstand ÷ Gesamtfahrzeit) stimmt.",
+          "daily_trip_reset": "Nach dem ersten erfolgreichen Abruf des Tages, in derselben Verbindung, damit das Display die heutige Fahrt zeigt. Die Gesamtwerte in HA zählen weiter. Wird das Rad erst nach einer Fahrt gelesen, verschwindet diese Fahrt vom Display (HA hat ihre Werte).",
+          "auto_clock": "In derselben Verbindung wie ein Abruf: nach einer Zeitumstellung, alle 90 Tage und beim ersten Einschalten der Option."
         }
       }
     }

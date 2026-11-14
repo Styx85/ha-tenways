@@ -15,6 +15,7 @@ from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.util import dt as dt_util
 from tenways_ble import TenwaysBike, TenwaysError, TenwaysProtocolError
 
 from .const import (
@@ -66,6 +67,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
     def __init__(
         self, hass: HomeAssistant, address: str, poll_seconds: int,
         totals: TenwaysTotals | None = None, name: str | None = None,
+        daily_trip_reset: bool = False, auto_clock: bool = False,
     ) -> None:
         super().__init__(
             hass, _LOGGER, name=f"TENWAYS {address}",
@@ -74,6 +76,8 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         self.address = address
         # Advertised name; picks the model's profile (the app's driver). Updated from advertisements.
         self.model_name = name
+        self._daily_trip_reset = daily_trip_reset
+        self._auto_clock = auto_clock
         self._profile_logged: str | None = None
         # Values over all trips and per day; None only in tests that do not need them.
         self.totals = totals
@@ -148,9 +152,10 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                             read_ok = True
                     except Exception as exc:
                         _LOGGER.debug('Standard battery read unavailable: %s', exc)
+                bike = self._bike(client)
                 try:
                     telemetry = await asyncio.wait_for(
-                        self._async_read_king_meter(self._bike(client)), KING_METER_TIMEOUT_SECONDS,
+                        self._async_read_king_meter(bike), KING_METER_TIMEOUT_SECONDS,
                     )
                 except TimeoutError:
                     _LOGGER.debug('King Meter exchange timed out (%s)', self.address)
@@ -163,6 +168,9 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                         telemetry.get('ride_seconds'), telemetry.get('odometer'), telemetry.get('max_speed'),
                         telemetry.get('trip_distance'),
                     )
+                if telemetry:
+                    # Right after the read, in the same connection: the bike may leave range soon.
+                    await self._async_automatic_writes(bike)
                 # Optional reads only when advertised as present in the GATT table.
                 for key, uuid in DEVICE_INFO_UUIDS.items():
                     if key in self._last:
@@ -217,13 +225,49 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         """Set the bike's clock to ``moment`` (local wall-clock fields). Needs the bike in range."""
         await self._async_write(lambda bike: bike.set_clock(moment), "clock_failed")
         _LOGGER.info("Set the clock of %s to %s", self.address, moment)
+        if self.totals is not None:
+            self.totals.async_clock_set(moment)
+
+    async def _async_automatic_writes(self, bike: TenwaysBike) -> None:
+        """The options' clock sync and daily trip reset; a failure is retried on a later read."""
+        totals = self.totals
+        if totals is None or not (self._auto_clock or self._daily_trip_reset):
+            return
+        now = dt_util.now()
+        if self._auto_clock and totals.clock_due(now):
+            try:
+                await asyncio.wait_for(bike.set_clock(now), KING_METER_TIMEOUT_SECONDS)
+            except (TenwaysError, TenwaysProtocolError, BleakError, OSError, TimeoutError) as exc:
+                _LOGGER.warning("Setting the clock of %s failed, will retry on a later read: %s", self.address, exc)
+                totals.async_write_failed(now, "clock_failures")
+            else:
+                _LOGGER.info("Set the clock of %s to %s (automatic)", self.address, now)
+                totals.async_clock_set(now)
+        if self._daily_trip_reset and totals.trip_reset_due(now):
+            # The read above already took the trip into HA's totals. An empty trip needs no write,
+            # but counts as today's reset, so a ride later today is not cleared when it is read.
+            if not (self._last.get('trip_distance') or self._last.get('ride_seconds')):
+                totals.async_trip_reset_done(now)
+                return
+            try:
+                await asyncio.wait_for(bike.reset_trip(), KING_METER_TIMEOUT_SECONDS)
+            except (TenwaysError, TenwaysProtocolError, BleakError, OSError, TimeoutError) as exc:
+                _LOGGER.warning("Clearing the trip of %s failed, will retry on a later read: %s", self.address, exc)
+                totals.async_write_failed(now, "reset_failures")
+            else:
+                _LOGGER.info("Cleared the trip of %s (first read of the day)", self.address)
+                totals.async_trip_reset_done(now)
+                # The values were read just before; show the cleared trip without waiting for the next poll.
+                for key in ('trip_distance', 'ride_seconds', 'max_speed', 'average_speed'):
+                    if key in self._last:
+                        self._last[key] = 0
 
     async def async_reset_trip(self) -> None:
         """Clear the bike's trip (distance, time, max and average speed). Needs the bike in range."""
         await self._async_write(lambda bike: bike.reset_trip(), "trip_reset_failed")
         _LOGGER.info("Cleared the trip of %s", self.address)
         if self.totals is not None:
-            self.totals.async_trip_cleared()
+            self.totals.async_trip_reset_done(dt_util.now())
         await self.async_request_refresh()
 
     async def _async_write(self, send, failed_key: str) -> None:
