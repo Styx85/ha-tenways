@@ -168,7 +168,10 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                 live = self._account(telemetry)
                 if telemetry:
                     # Right after the read, in the same connection: the bike may leave range soon.
-                    await self._async_automatic_writes(bike)
+                    try:
+                        await self._async_automatic_writes(bike)
+                    except Exception:  # never lose the read over an automatic write
+                        _LOGGER.exception("Automatic write to %s failed", self.address)
                 # Optional reads only when advertised as present in the GATT table.
                 for key, uuid in DEVICE_INFO_UUIDS.items():
                     if key in self._last:
@@ -248,7 +251,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
     async def _async_automatic_trip_reset(self, bike: TenwaysBike, now: datetime, new_session: bool) -> None:
         totals = self.totals
         assert totals is not None
-        if not self.trip_reset_wanted(now, new_session):
+        if not self._trip_reset_wanted(now, new_session):
             return
         # The read above already took the trip into HA's totals. An empty trip needs no write,
         # but counts as done, so a ride later today is not cleared when it is read.
