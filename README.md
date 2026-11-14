@@ -37,11 +37,22 @@ The integration picks a profile from the name the bike advertises, the way the T
 
 ## Installation
 
-1. HACS → ⋮ → Custom repositories → add `https://github.com/Styx85/ha-tenways` as **Integration**.
-2. Install **TENWAYS BLE** and restart Home Assistant.
-3. Switch the bike on. Settings → Devices & services: HA offers the bike (advertised as **Longtail Duo**); confirm it. Otherwise add **TENWAYS BLE** and pick it or type its Bluetooth address.
+Until it is in the HACS default list ([pending](https://github.com/hacs/default/pull/14169)), add it as a custom repository. One click:
 
-Close the TENWAYS app: the bike accepts one connection at a time.
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Styx85&repository=ha-tenways&category=integration)
+
+Or by hand: HACS → ⋮ (top right) → **Custom repositories**, paste the URL below, type **Integration**, **Add**:
+
+```text
+https://github.com/Styx85/ha-tenways
+```
+
+Then:
+
+1. In HACS, open **TENWAYS BLE** → **Download**, and restart Home Assistant.
+2. Switch the bike on. Settings → Devices & services: HA offers the bike (advertised as **Longtail Duo**); confirm it. Otherwise **Add integration** → **TENWAYS BLE** and pick it or type its Bluetooth address.
+
+Needs a Bluetooth adapter or an ESPHome Bluetooth proxy with active connections within range of the bike. Close the TENWAYS app: the bike accepts one connection at a time.
 
 ## Options
 
