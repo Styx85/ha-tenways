@@ -7,8 +7,9 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
-from .const import CONF_ADDRESS, CONF_POLL_SECONDS, DOMAIN, POLL_SECONDS
+from .const import CONF_ADDRESS, CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE, DOMAIN, POLL_SECONDS
 from .coordinator import TenwaysCoordinator
+from .totals import TenwaysTotals
 
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.BUTTON]
 
@@ -29,8 +30,11 @@ def _remove_stale_entities(hass: HomeAssistant, entry: TenwaysConfigEntry) -> No
 
 async def async_setup_entry(hass: HomeAssistant, entry: TenwaysConfigEntry) -> bool:
     _remove_stale_entities(hass, entry)
+    totals = TenwaysTotals(hass, entry.entry_id, entry.options.get(CONF_RIDE_HOURS_BEFORE, 0) * 3600)
+    await totals.async_load()
+    entry.async_on_unload(totals.async_track_midnight())
     coordinator = TenwaysCoordinator(
-        hass, entry.data[CONF_ADDRESS], entry.options.get(CONF_POLL_SECONDS, POLL_SECONDS)
+        hass, entry.data[CONF_ADDRESS], entry.options.get(CONF_POLL_SECONDS, POLL_SECONDS), totals,
     )
     entry.runtime_data = coordinator
     # Startup should not fail while the bicycle is switched off or away.
@@ -50,4 +54,10 @@ async def _async_options_updated(hass: HomeAssistant, entry: TenwaysConfigEntry)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: TenwaysConfigEntry) -> bool:
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        await entry.runtime_data.totals.async_unload()
+    return unloaded
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: TenwaysConfigEntry) -> None:
+    await TenwaysTotals(hass, entry.entry_id).async_remove()

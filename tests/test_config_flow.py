@@ -7,7 +7,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from tenways_ble.const import TENWAYS_SERVICE_UUID
 
-from custom_components.tenways.const import CONF_ADDRESS, CONF_POLL_SECONDS, DOMAIN
+from custom_components.tenways.const import CONF_ADDRESS, CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE, DOMAIN
 
 
 async def test_options_flow_sets_poll_interval(hass):
@@ -18,7 +18,18 @@ async def test_options_flow_sets_poll_interval(hass):
     with patch("custom_components.tenways.async_setup_entry", return_value=True):
         result = await hass.config_entries.options.async_configure(result["flow_id"], {CONF_POLL_SECONDS: 120})
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert entry.options == {CONF_POLL_SECONDS: 120}
+    assert entry.options == {CONF_POLL_SECONDS: 120, CONF_RIDE_HOURS_BEFORE: 0.0}
+
+
+async def test_options_flow_sets_ride_time_before(hass):
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_ADDRESS: "E8:88:6C:31:B3:0D"}, unique_id="E8:88:6C:31:B3:0D")
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    with patch("custom_components.tenways.async_setup_entry", return_value=True):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {CONF_POLL_SECONDS: 300, CONF_RIDE_HOURS_BEFORE: 11.9361},
+        )
+    assert entry.options[CONF_RIDE_HOURS_BEFORE] == 11.9361
 
 
 def _advertisement(name, service_uuids=()):

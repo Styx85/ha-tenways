@@ -10,7 +10,7 @@
       },
       "bluetooth_confirm": {
         "title": "TENWAYS-Fahrrad hinzufügen",
-        "description": "{name} hinzufügen? Werte werden nur gelesen, es werden keine Befehle an das Fahrrad gesendet."
+        "description": "{name} hinzufügen? Werte werden gelesen; an das Rad gehen nur Uhrzeit und Trip-Reset, und nur wenn ihr Button gedrückt wird."
       }
     },
     "error": {
@@ -28,7 +28,11 @@
         "title": "TENWAYS-Optionen",
         "description": "Jede Abfrage baut kurz eine BLE-Verbindung auf. Währenddessen kann sich die TENWAYS-App nicht verbinden.",
         "data": {
-          "poll_seconds": "Abfrageintervall (Sekunden)"
+          "poll_seconds": "Abfrageintervall (Sekunden)",
+          "ride_hours_before": "Fahrzeit vor der Zählung durch HA (Stunden)"
+        },
+        "data_description": {
+          "ride_hours_before": "Gesamtfahrzeit = dieser Wert plus alle Trips, die HA seitdem gelesen hat. Die Fahrzeit des Rads von vor dem ersten Trip-Reset eintragen, damit der Gesamtdurchschnitt (Kilometerstand ÷ Gesamtfahrzeit) stimmt."
         }
       }
     }
@@ -97,6 +101,21 @@
       },
       "manufacturer": {
         "name": "BLE-Hersteller"
+      },
+      "total_ride_time": {
+        "name": "Gesamtfahrzeit"
+      },
+      "average_speed_total": {
+        "name": "Durchschnittsgeschwindigkeit gesamt"
+      },
+      "max_speed_total": {
+        "name": "Höchstgeschwindigkeit gesamt"
+      },
+      "ride_time_today": {
+        "name": "Fahrzeit heute"
+      },
+      "distance_today": {
+        "name": "Strecke heute"
       }
     },
     "binary_sensor": {
@@ -113,6 +132,9 @@
       },
       "reset_trip": {
         "name": "Trip zurücksetzen"
+      },
+      "reset_max_speed_total": {
+        "name": "Höchstgeschwindigkeit gesamt zurücksetzen"
       }
     }
   },

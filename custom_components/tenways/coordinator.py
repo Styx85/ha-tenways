@@ -21,6 +21,7 @@ from .const import (
     ADVERTISEMENT_MAX_AGE_SECONDS, DOMAIN, BATTERY_UUID, DEVICE_INFO_UUIDS,
     KING_METER_TIMEOUT_SECONDS,
 )
+from .totals import TenwaysTotals
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,12 +61,17 @@ class TenwaysData:
 class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
     """Poll the bike through the HA-managed BLE adapter or proxy."""
 
-    def __init__(self, hass: HomeAssistant, address: str, poll_seconds: int) -> None:
+    def __init__(
+        self, hass: HomeAssistant, address: str, poll_seconds: int,
+        totals: TenwaysTotals | None = None,
+    ) -> None:
         super().__init__(
             hass, _LOGGER, name=f"TENWAYS {address}",
             update_interval=timedelta(seconds=poll_seconds),
         )
         self.address = address
+        # Values over all trips and per day; None only in tests that do not need them.
+        self.totals = totals
         self._last_successful_read: datetime | None = None
         self._last_advertisement: datetime | None = None
         self._king_meter_info_read = False
@@ -122,6 +128,11 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                 read_ok = read_ok or bool(telemetry)
                 live = {key: telemetry.pop(key, None) for key in LIVE_FIELDS if key != 'rssi'}
                 self._last.update(telemetry)
+                if telemetry and self.totals is not None:
+                    self.totals.async_update(
+                        telemetry.get('ride_seconds'), telemetry.get('odometer'), telemetry.get('max_speed'),
+                        telemetry.get('trip_distance'),
+                    )
                 # Optional reads only when advertised as present in the GATT table.
                 for key, uuid in DEVICE_INFO_UUIDS.items():
                     if key in self._last:
@@ -181,6 +192,8 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         """Clear the bike's trip (distance, time, max and average speed). Needs the bike in range."""
         await self._async_write(lambda bike: bike.reset_trip(), "trip_reset_failed")
         _LOGGER.info("Cleared the trip of %s", self.address)
+        if self.totals is not None:
+            self.totals.async_trip_cleared()
         await self.async_request_refresh()
 
     async def _async_write(self, send, failed_key: str) -> None:

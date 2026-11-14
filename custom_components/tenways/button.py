@@ -1,4 +1,4 @@
-"""TENWAYS buttons: set the clock, clear the trip."""
+"""TENWAYS buttons: set the clock, clear the trip, reset HA's overall maximum."""
 from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
@@ -17,6 +17,7 @@ async def async_setup_entry(
     async_add_entities([
         TenwaysSetClock(entry, entry.runtime_data, "set_clock"),
         TenwaysResetTrip(entry, entry.runtime_data, "reset_trip"),
+        TenwaysResetMaxSpeedTotal(entry, entry.runtime_data, "reset_max_speed_total"),
     ])
 
 
@@ -54,3 +55,14 @@ class TenwaysResetTrip(TenwaysEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self.coordinator.async_reset_trip()
+
+
+class TenwaysResetMaxSpeedTotal(TenwaysEntity, ButtonEntity):
+    """Sets HA's maximum over all trips to 0, e.g. after an implausible reading. Sends nothing."""
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:speedometer-slow"
+    _attr_entity_registry_enabled_default = False
+
+    async def async_press(self) -> None:
+        self.coordinator.totals.async_reset_max_speed()

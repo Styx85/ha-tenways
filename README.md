@@ -24,6 +24,7 @@ The bike advertises two endpoints. Only **Longtail Duo** (King Meter service) de
   | at 68 % | 60 | 54 | 50 | 45 | 43 |
   | at 48 % | 43 | 38 | 35 | 32 | 31 |
 - **Unverified:** power in W from field `0x23` (`power` in the app, values above 3000 ignored); 0 while parked, not yet seen while riding.
+- **Computed by HA**, because the bike only knows the current trip (see [Totals over all trips and per day](#totals-over-all-trips-and-per-day)): total ride time, average and maximum speed over all trips, ride time and distance today.
 - Disabled diagnostic sensors for the raw status fields `0x0B`, `0x11`, `0x23`, `0x4F`; `0x4F` is not interpreted.
 - Standard Bluetooth battery (`0x2A19`): **not the traction battery**; on the Longtail Duo it counts up by 1 roughly every read while the bike is on and resets to 0 when it is switched off, so it looks like a counter. Disabled diagnostic sensor.
 - Last successful read (shows how old the kept values are), BLE signal, last advertisement and optional Device Information characteristics.
@@ -109,7 +110,7 @@ HA's statistics are not affected: trip distance and ride time are `total_increas
 
 ### Example: a fresh trip every day
 
-Clears the trip after the first successful read of each day, so the display shows today's ride. Yesterday's trip distance, ride time, average and maximum speed are lost on the bike (HA keeps their history). As with the clock example, the time of the last *successful* reset is kept in a helper, because the button records failed presses too; a failed press is tried again on a later read, at most once an hour.
+Clears the trip after the first successful read of each day, so the display shows today's ride. Yesterday's trip distance, ride time, average and maximum speed are lost on the bike; HA keeps their history and its [totals](#totals-over-all-trips-and-per-day) keep counting. As with the clock example, the time of the last *successful* reset is kept in a helper, because the button records failed presses too; a failed press is tried again on a later read, at most once an hour.
 
 ```yaml
 input_datetime:
@@ -150,6 +151,23 @@ input_datetime:
   mode: single
   max_exceeded: silent
 ```
+
+## Totals over all trips and per day
+
+Once the trip is cleared, the bike forgets its ride time, maximum and average. The integration therefore keeps its own totals from every successful read, stored per bike and kept across restarts:
+
+| Sensor | How it is computed |
+|---|---|
+| Total ride time | the option *Ride time before HA counted* plus every increase of the trip's ride time; a lower value means the trip was cleared and counts again from 0 |
+| Average speed overall | odometer ÷ total ride time |
+| Maximum speed overall | highest trip maximum read; values above 75 km/h are ignored, as in the TENWAYS app. The disabled **Reset overall maximum speed** button sets it to 0 (sends nothing to the bike); the current trip's maximum then only counts once it is exceeded or a new trip starts |
+| Ride time today, Distance today | increase of the trip's ride time and of the odometer since local midnight |
+
+On the first read the current trip counts as ridden. If the trip was cleared before you installed this version, enter the ride time from before that reset in the options (Settings → Devices & services → TENWAYS → Configure), in hours, so that the overall average is right. Changing it later shows up in HA's long-term statistics of the total ride time as a one-off jump.
+
+A drop of the ride time only counts as a cleared trip if the trip distance dropped too; otherwise the reading is ignored, so a glitch cannot count the trip twice.
+
+HA only sees changes when it reads the bike: a ride after the last read of the evening counts for the day of the next read. Riding while the trip is cleared on the display and reading only afterwards also undercounts if the new trip has grown beyond the old one by then; with the **Reset trip** button HA knows about the reset.
 
 ## Distance per period and ride log
 
