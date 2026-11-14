@@ -46,6 +46,61 @@ No unlock, light, power, firmware, configuration or pairing commands are impleme
 
 The bike has no daylight saving and keeps showing summer time until it is set. The **Set clock** button (a configuration entity of the bike device) sends Home Assistant's local time to the bike, the same write the TENWAYS app makes. It sends nothing on its own; press it with the bike switched on and in range of an adapter or proxy, with the TENWAYS app closed. Press it again after each time change. Confirmed on a Longtail Duo: after a press the display changed from summer time to the correct local time to the minute; the assist level and everything else stay as they are.
 
+### Example: set the clock automatically
+
+The bike is only reachable while it is switched on, so a fixed time does not work. This automation runs after each successful read instead and presses **Set clock** when the clock was last set before a daylight saving change, or more than 90 days ago. The time of the last *successful* press is kept in a helper, because the button records every press, failed ones included; a failed press is tried again on a later read, at most once an hour. Running in Home Assistant since November 2026.
+
+Helper (`configuration.yaml`, or create a Date and time helper in the UI):
+
+```yaml
+input_datetime:
+  tenways_clock_last_set:
+    name: TENWAYS clock last set
+    has_date: true
+    has_time: true
+```
+
+Automation (adjust the entity IDs to yours under Settings → Entities):
+
+```yaml
+- id: tenways_set_clock
+  alias: TENWAYS set clock (time change / every 90 days)
+  triggers:
+    - trigger: state
+      entity_id: sensor.longtail_duo_last_successful_read
+      # ignore reloads, where the restored value comes back from unavailable
+      not_from: [unavailable, unknown]
+      not_to: [unavailable, unknown]
+  conditions:
+    # at most one attempt an hour if setting the clock keeps failing
+    - condition: template
+      value_template: >-
+        {{ this.attributes.last_triggered is none
+           or now() - this.attributes.last_triggered > timedelta(hours=1) }}
+    - condition: template
+      value_template: >-
+        {% set ts = state_attr('input_datetime.tenways_clock_last_set', 'timestamp') %}
+        {% if ts is none %}true{% else %}
+        {% set last = as_local(as_datetime(ts)) %}
+        {{ last.utcoffset() != now().utcoffset() or now() - last > timedelta(days=90) }}
+        {% endif %}
+  actions:
+    - delay: "00:00:05"
+    # raises an error if the bike does not acknowledge; then the steps below are skipped
+    - action: button.press
+      target:
+        entity_id: button.longtail_duo_set_clock
+    - action: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.tenways_clock_last_set
+      data:
+        timestamp: "{{ now().timestamp() }}"
+  mode: single
+  max_exceeded: silent
+```
+
+A new helper starts at 1970, so the first read after setting this up sets the clock once.
+
 ## Distance per period and ride log
 
 The **Odometer** is a `total_increasing` sensor, so Home Assistant keeps long-term statistics for it. A statistics graph shows the distance per day, week or month:
