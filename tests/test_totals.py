@@ -172,10 +172,13 @@ async def test_co2_and_trees_follow_the_display_readings(hass):
     totals.async_update(0, 164.0, None)
     assert round(totals.co2_saved_kg) == 285  # display: 164.0 km -> 285 kg
     assert totals.trees_saved == 22  # display: 22 trees
-    totals.async_update(0, 3.2, None)
-    assert round(totals.co2_saved_kg) == 6  # display: 3.2 km -> 6 kg
-    assert totals.trees_saved == 0
     await totals.async_unload()
+    short = TenwaysTotals(hass, "other entry")
+    await short.async_load()
+    short.async_update(0, 3.2, None)
+    assert round(short.co2_saved_kg) == 6  # display: 3.2 km -> 6 kg
+    assert short.trees_saved == 0
+    await short.async_unload()
 
 
 
