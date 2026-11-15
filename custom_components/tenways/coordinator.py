@@ -81,6 +81,8 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         self._new_session = True
         self.auto_clock = auto_clock
         self.reload_options: dict = {}
+        # Set once the entities exist; an automatic reset waits for them, so the ride reaches their history.
+        self.entities_ready = False
         self._profile_logged: str | None = None
         # Values over all trips and per day; None only in tests that do not need them.
         self.totals = totals
@@ -248,9 +250,9 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
     async def _async_automatic_writes(self, bike: TenwaysBike, publish_read=None) -> None:
         """The options' clock sync and trip reset; a failure is retried on a later read."""
         totals = self.totals
+        if totals is None or not (self.auto_clock or self.trip_reset != TRIP_RESET_OFF) or not self.entities_ready:
+            return  # the session stays new, so the next read (with entities) still clears the trip
         new_session, self._new_session = self._new_session, False
-        if totals is None or not (self.auto_clock or self.trip_reset != TRIP_RESET_OFF):
-            return
         now = dt_util.now()
         # The trip first, right after the read: nothing ridden in between can be lost.
         await self._async_automatic_trip_reset(bike, now, new_session, publish_read)
@@ -315,7 +317,15 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         """Read the trip into HA, then clear it (distance, time, max and average speed), in one connection."""
 
         async def read_then_clear(bike: TenwaysBike) -> None:
-            self._account(await self._async_read_king_meter(bike))
+            live = self._account(await self._async_read_king_meter(bike))
+            # Show the ride as read before it is cleared (trip sensors' history and statistics).
+            if self.data is not None:
+                self._last_successful_read = datetime.now(timezone.utc)
+                self.data = replace(
+                    self.data, **self._last, **{k: v for k, v in live.items() if v is not None},
+                    last_successful_read=self._last_successful_read,
+                )
+                self.async_update_listeners()
             await bike.reset_trip()
 
         await self._async_write(read_then_clear, "trip_reset_failed")

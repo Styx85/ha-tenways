@@ -176,3 +176,14 @@ async def test_co2_and_trees_follow_the_display_readings(hass):
     assert round(totals.co2_saved_kg) == 6  # display: 3.2 km -> 6 kg
     assert totals.trees_saved == 0
     await totals.async_unload()
+
+
+
+async def test_lower_odometer_reading_is_ignored(hass):
+    totals = TenwaysTotals(hass, "entry")
+    await totals.async_load()
+    totals.async_update(0, 164.0, None)
+    totals.async_update(0, 0.0, None)  # glitch
+    assert totals.state.last_odometer == 164.0
+    assert round(totals.co2_saved_kg) == 285
+    await totals.async_unload()

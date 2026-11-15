@@ -378,6 +378,7 @@ async def _refresh_with_options(hass, *bikes, trip_reset="off", auto_clock=False
     coordinator = TenwaysCoordinator(
         hass, ADDRESS, 300, totals, "Longtail Duo", trip_reset=trip_reset, auto_clock=auto_clock,
     )
+    coordinator.entities_ready = True
     results = []
     with patch("custom_components.tenways.coordinator.establish_connection", side_effect=list(bikes)), \
          patch("custom_components.tenways.coordinator.dt_util.now", return_value=at):
@@ -471,6 +472,7 @@ async def test_ride_is_published_before_the_reset_clears_it(hass, advertising):
     totals = TenwaysTotals(hass, "entry")
     await totals.async_load()
     coordinator = TenwaysCoordinator(hass, ADDRESS, 300, totals, "Longtail Duo", trip_reset="ride")
+    coordinator.entities_ready = True
     seen = []
     unsub = coordinator.async_add_listener(lambda: seen.append(coordinator.data.trip_distance))
     bike = FakeBike(replies={STATUS_REQUEST: _status(3, 600), INFO_REQUEST: INFO_REPLY, CLEAR_TRIP: CLEAR_TRIP})
@@ -481,3 +483,39 @@ async def test_ride_is_published_before_the_reset_clears_it(hass, advertising):
     await totals.async_unload()
     assert seen == [3.0, 0]  # the ride as read, then the cleared trip
     assert bike.writes == [INFO_REQUEST, STATUS_REQUEST, CLEAR_TRIP]
+
+
+
+async def test_no_automatic_reset_before_the_entities_exist(hass, advertising):
+    # The first refresh at setup runs before the platforms; the reset waits for the next read.
+    from custom_components.tenways.totals import TenwaysTotals
+
+    totals = TenwaysTotals(hass, "entry")
+    await totals.async_load()
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, totals, "Longtail Duo", trip_reset="ride")
+    first = FakeBike(replies={STATUS_REQUEST: _status(3, 600), INFO_REQUEST: INFO_REPLY, CLEAR_TRIP: CLEAR_TRIP})
+    second = FakeBike(replies={STATUS_REQUEST: _status(3, 600), CLEAR_TRIP: CLEAR_TRIP})
+    with patch("custom_components.tenways.coordinator.establish_connection", side_effect=[first, second]), \
+         patch("custom_components.tenways.coordinator.dt_util.now", return_value=CLOCK_MOMENT):
+        await coordinator.async_refresh()
+        coordinator.entities_ready = True
+        await coordinator.async_refresh()
+    await totals.async_unload()
+    assert CLEAR_TRIP not in first.writes
+    assert CLEAR_TRIP in second.writes
+    assert totals.total_ride_s == 600  # counted once
+
+
+async def test_reset_button_publishes_the_ride_first(hass, advertising):
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    poll = FakeBike(replies={STATUS_REQUEST: _status(2, 400), INFO_REQUEST: INFO_REPLY})
+    press = FakeBike(replies={STATUS_REQUEST: _status(3, 600), CLEAR_TRIP: CLEAR_TRIP})
+    seen = []
+    with patch("custom_components.tenways.coordinator.establish_connection", side_effect=[poll, press]), \
+         patch.object(TenwaysCoordinator, "async_request_refresh"):
+        await coordinator.async_refresh()
+        unsub = coordinator.async_add_listener(lambda: seen.append(coordinator.data.trip_distance))
+        await coordinator.async_reset_trip()
+    unsub()
+    assert seen[0] == 3.0  # the ride as read when the button was pressed, before it is cleared
+    assert press.writes == [STATUS_REQUEST, CLEAR_TRIP]

@@ -53,7 +53,6 @@ The automatic example is in [automations.md](automations.md#example-set-the-cloc
 
 With an automatic reset, the values as read are published first and the cleared trip right after, so each ride shows up in the history and long-term statistics of the trip sensors.
 
-
 The **Reset trip** button (a configuration entity of the bike device) clears the trip like the display's "Clear trip" (hold [i], broom icon): trip distance, ride time, maximum and average speed go to 0, and so do the display's "CO₂ saved" and "trees saved", which it derives from the trip. The odometer stays. It is the TENWAYS app's own write; the app has it for the Longtail Duo but does not show it. Nothing is sent on its own; press it with the bike on and in range. Confirmed on a Longtail Duo: the bike acknowledges and the display shows 0.
 
 HA's statistics are not affected: trip distance and ride time are `total_increasing`, so a reset starts a new cycle and the distance per day, week or month keeps counting.

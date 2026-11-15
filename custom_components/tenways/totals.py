@@ -167,7 +167,9 @@ class TenwaysTotals:
                 _LOGGER.debug("Ignoring a drop of the trip ride time without a drop of the trip distance")
         if trip_km is not None:
             s.last_trip_km = trip_km
-        if odometer is not None:
+        # The odometer never goes down; a lower reading is a glitch and would count CO2, trees
+        # and distance twice in HA's statistics.
+        if odometer is not None and (s.last_odometer is None or odometer >= s.last_odometer):
             if s.day_start_odometer is None:
                 s.day_start_odometer = odometer
             s.last_odometer = odometer
