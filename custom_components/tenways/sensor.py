@@ -4,7 +4,9 @@ from __future__ import annotations
 from datetime import datetime
 
 from homeassistant.components.sensor import RestoreSensor, SensorDeviceClass, SensorEntity, SensorStateClass
-from homeassistant.const import PERCENTAGE, SIGNAL_STRENGTH_DECIBELS_MILLIWATT, EntityCategory, UnitOfPower, UnitOfTime
+from homeassistant.const import (
+    PERCENTAGE, SIGNAL_STRENGTH_DECIBELS_MILLIWATT, EntityCategory, UnitOfMass, UnitOfPower, UnitOfTime,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -45,7 +47,10 @@ async def async_setup_entry(
 
 
 # Computed by HA (totals.py); the bike itself only knows the current trip.
-TOTAL_SENSORS = ("total_ride_time", "average_speed_total", "max_speed_total", "ride_time_today", "distance_today")
+TOTAL_SENSORS = (
+    "total_ride_time", "average_speed_total", "max_speed_total", "ride_time_today", "distance_today",
+    "co2_saved_total", "trees_saved_total",
+)
 
 
 class TenwaysSensor(TenwaysEntity, RestoreSensor):
@@ -164,6 +169,16 @@ class TenwaysTotalSensor(TenwaysEntity, SensorEntity):
             self._attr_native_unit_of_measurement = "km"
             self._attr_device_class = SensorDeviceClass.DISTANCE
             self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        elif key == "co2_saved_total":
+            # An approximation of the display's formula (see totals.py), over all rides.
+            self._attr_native_unit_of_measurement = UnitOfMass.KILOGRAMS
+            self._attr_device_class = SensorDeviceClass.WEIGHT
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+            self._attr_suggested_display_precision = 0
+            self._attr_icon = "mdi:molecule-co2"
+        elif key == "trees_saved_total":
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+            self._attr_icon = "mdi:pine-tree"
         else:
             self._attr_native_unit_of_measurement = "km/h"
             self._attr_device_class = SensorDeviceClass.SPEED
@@ -184,6 +199,10 @@ class TenwaysTotalSensor(TenwaysEntity, SensorEntity):
             return totals.day_distance
         if self._key == "max_speed_total":
             return totals.max_speed
+        if self._key == "co2_saved_total":
+            return totals.co2_saved_kg
+        if self._key == "trees_saved_total":
+            return totals.trees_saved
         return totals.average_speed(self.coordinator.data.odometer if self.coordinator.data else None)
 
     @property

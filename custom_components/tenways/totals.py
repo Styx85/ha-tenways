@@ -24,6 +24,12 @@ SAVE_DELAY_SECONDS = 10
 # The TENWAYS app also discards higher trip maxima as implausible.
 MAX_PLAUSIBLE_SPEED_KMH = 75.0
 MAX_FAILURES_PER_DAY = 3
+# Approximation of the Longtail Duo display's "CO2 saved" and "trees saved", which it derives
+# from the trip and rounds to whole numbers. Display readings: 164.0 km -> 285 kg, 22 trees;
+# 3.2 km -> 6 kg, 0 trees. Only 1.735-1.741 kg/km fits both; the tree factor (about 13 kg per
+# tree) rests on one reading so far.
+CO2_KG_PER_KM = 1.738
+CO2_KG_PER_TREE = 13.0
 CLOCK_MAX_AGE_SECONDS = 90 * 24 * 3600
 
 
@@ -108,6 +114,17 @@ class TenwaysTotals:
             return None
         return round(max(0.0, s.last_odometer - s.day_start_odometer), 2)
 
+    @property
+    def co2_saved_kg(self) -> float | None:
+        """CO2 saved over all rides (odometer), like the display computes it for a trip."""
+        odometer = self.state.last_odometer
+        return None if odometer is None else round(odometer * CO2_KG_PER_KM, 1)
+
+    @property
+    def trees_saved(self) -> int | None:
+        co2 = self.co2_saved_kg
+        return None if co2 is None else round(co2 / CO2_KG_PER_TREE)
+
     def average_speed(self, odometer: float | None = None) -> float | None:
         """Odometer over total ride time; both count from kilometre 0 when the offset is right."""
         total = self.total_ride_s
@@ -150,7 +167,9 @@ class TenwaysTotals:
                 _LOGGER.debug("Ignoring a drop of the trip ride time without a drop of the trip distance")
         if trip_km is not None:
             s.last_trip_km = trip_km
-        if odometer is not None:
+        # The odometer never goes down; a lower reading is a glitch and would count CO2, trees
+        # and distance twice in HA's statistics.
+        if odometer is not None and (s.last_odometer is None or odometer >= s.last_odometer):
             if s.day_start_odometer is None:
                 s.day_start_odometer = odometer
             s.last_odometer = odometer

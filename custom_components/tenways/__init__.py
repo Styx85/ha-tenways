@@ -45,6 +45,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TenwaysConfigEntry) -> b
     # Startup should not fail while the bicycle is switched off or away.
     await coordinator.async_refresh()
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    coordinator.entities_ready = True
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     entry.async_on_unload(bluetooth.async_register_callback(
         hass, coordinator.async_handle_advertisement,

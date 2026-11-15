@@ -35,6 +35,7 @@ Once the trip is cleared, the bike forgets its ride time, maximum and average. T
 | Average speed overall | odometer ÷ total ride time |
 | Maximum speed overall | highest trip maximum read; values above 75 km/h are ignored, as in the TENWAYS app. The disabled **Reset overall maximum speed** button sets it to 0 (sends nothing to the bike); the current trip's maximum then only counts once it is exceeded or a new trip starts |
 | Ride time today, Distance today | increase of the trip's ride time and of the odometer since local midnight |
+| CO₂ saved overall, Trees saved overall | odometer × 1.738 kg CO₂ per km, and CO₂ ÷ 13 kg per tree, rounded: an approximation of the display's "CO₂ saved" and "trees saved", which it computes for the trip. Display readings 164.0 km → 285 kg, 22 trees and 3.2 km → 6 kg, 0 trees fit only 1.735–1.741 kg/km; the tree factor rests on one reading so far |
 
 On the first read the current trip counts as ridden. If the trip was cleared before you installed this version, enter the ride time from before that reset in the options (Settings → Devices & services → TENWAYS → Configure), in hours, so that the overall average is right. Changing it later shows up in HA's long-term statistics of the total ride time as a one-off jump.
 
@@ -49,6 +50,8 @@ The bike has no daylight saving and keeps showing summer time until it is set. T
 The automatic example is in [automations.md](automations.md#example-set-the-clock-automatically).
 
 ## Resetting the trip
+
+With an automatic reset, the values as read are published first and the cleared trip right after, so each ride shows up in the history and long-term statistics of the trip sensors.
 
 The **Reset trip** button (a configuration entity of the bike device) clears the trip like the display's "Clear trip" (hold [i], broom icon): trip distance, ride time, maximum and average speed go to 0, and so do the display's "CO₂ saved" and "trees saved", which it derives from the trip. The odometer stays. It is the TENWAYS app's own write; the app has it for the Longtail Duo but does not show it. Nothing is sent on its own; press it with the bike on and in range. Confirmed on a Longtail Duo: the bike acknowledges and the display shows 0.
 

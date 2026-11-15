@@ -163,3 +163,30 @@ async def test_total_sensors_on_the_device(hass):
         max_id = registry.async_get_entity_id("sensor", DOMAIN, f"{ADDRESS}_max_speed_total")
         assert hass.states.get(max_id).state == "30.0"
         assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_co2_and_trees_follow_the_display_readings(hass):
+    totals = TenwaysTotals(hass, "entry")
+    await totals.async_load()
+    assert totals.co2_saved_kg is None and totals.trees_saved is None
+    totals.async_update(0, 164.0, None)
+    assert round(totals.co2_saved_kg) == 285  # display: 164.0 km -> 285 kg
+    assert totals.trees_saved == 22  # display: 22 trees
+    await totals.async_unload()
+    short = TenwaysTotals(hass, "other entry")
+    await short.async_load()
+    short.async_update(0, 3.2, None)
+    assert round(short.co2_saved_kg) == 6  # display: 3.2 km -> 6 kg
+    assert short.trees_saved == 0
+    await short.async_unload()
+
+
+
+async def test_lower_odometer_reading_is_ignored(hass):
+    totals = TenwaysTotals(hass, "entry")
+    await totals.async_load()
+    totals.async_update(0, 164.0, None)
+    totals.async_update(0, 0.0, None)  # glitch
+    assert totals.state.last_odometer == 164.0
+    assert round(totals.co2_saved_kg) == 285
+    await totals.async_unload()
