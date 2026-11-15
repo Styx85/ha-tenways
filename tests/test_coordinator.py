@@ -463,3 +463,21 @@ async def test_ride_mode_reads_then_clears_each_time_the_bike_appears(hass, adve
     assert back_home.writes == [STATUS_REQUEST, CLEAR_TRIP]
     assert totals.total_ride_s == 600 + 900  # every ride read before it was cleared
     assert results[-1].trip_distance == 0
+
+
+async def test_ride_is_published_before_the_reset_clears_it(hass, advertising):
+    from custom_components.tenways.totals import TenwaysTotals
+
+    totals = TenwaysTotals(hass, "entry")
+    await totals.async_load()
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, totals, "Longtail Duo", trip_reset="ride")
+    seen = []
+    unsub = coordinator.async_add_listener(lambda: seen.append(coordinator.data.trip_distance))
+    bike = FakeBike(replies={STATUS_REQUEST: _status(3, 600), INFO_REQUEST: INFO_REPLY, CLEAR_TRIP: CLEAR_TRIP})
+    with patch("custom_components.tenways.coordinator.establish_connection", return_value=bike), \
+         patch("custom_components.tenways.coordinator.dt_util.now", return_value=CLOCK_MOMENT):
+        await coordinator.async_refresh()
+    unsub()
+    await totals.async_unload()
+    assert seen == [3.0, 0]  # the ride as read, then the cleared trip
+    assert bike.writes == [INFO_REQUEST, STATUS_REQUEST, CLEAR_TRIP]

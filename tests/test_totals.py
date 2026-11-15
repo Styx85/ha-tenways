@@ -163,3 +163,16 @@ async def test_total_sensors_on_the_device(hass):
         max_id = registry.async_get_entity_id("sensor", DOMAIN, f"{ADDRESS}_max_speed_total")
         assert hass.states.get(max_id).state == "30.0"
         assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_co2_and_trees_follow_the_display_readings(hass):
+    totals = TenwaysTotals(hass, "entry")
+    await totals.async_load()
+    assert totals.co2_saved_kg is None and totals.trees_saved is None
+    totals.async_update(0, 164.0, None)
+    assert round(totals.co2_saved_kg) == 285  # display: 164.0 km -> 285 kg
+    assert totals.trees_saved == 22  # display: 22 trees
+    totals.async_update(0, 3.2, None)
+    assert round(totals.co2_saved_kg) == 6  # display: 3.2 km -> 6 kg
+    assert totals.trees_saved == 0
+    await totals.async_unload()

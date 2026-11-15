@@ -7,7 +7,7 @@ Unofficial integration for TENWAYS e-bikes over Bluetooth, built on the [`tenway
 ## Features
 
 - **Battery and ride data:** traction battery, odometer, trip distance, ride time, maximum and average speed, light, remaining range.
-- **Totals HA keeps for you:** total ride time, average and maximum speed over all trips, ride time and distance today. They keep counting when the trip is cleared, are stored per bike and appear in the long-term statistics.
+- **Totals HA keeps for you:** total ride time, average and maximum speed over all trips, ride time and distance today, and CO₂ and trees saved over all rides (the display's formula, approximated). They keep counting when the trip is cleared, are stored per bike and appear in the long-term statistics.
 - **Automatic trip reset and clock (options):** clear the trip once a day or for every ride, and keep the bike's clock right across daylight saving changes. Both happen in the connection that reads the bike, right after the read, so no ride is lost and it works even if you ride off at once.
 - **Buttons:** **Set clock** (the bike has no daylight saving) and **Reset trip**, each sending the TENWAYS app's own write; plus a disabled one that resets HA's overall maximum.
 - Keeps the last values while the bike is off, also across restarts; polls immediately when the bike is switched on.

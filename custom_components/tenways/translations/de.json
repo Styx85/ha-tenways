@@ -121,6 +121,12 @@
       },
       "distance_today": {
         "name": "Strecke heute"
+      },
+      "co2_saved_total": {
+        "name": "CO₂ vermieden gesamt"
+      },
+      "trees_saved_total": {
+        "name": "Bäume gerettet gesamt"
       }
     },
     "binary_sensor": {

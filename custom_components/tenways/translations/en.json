@@ -121,6 +121,12 @@
       },
       "distance_today": {
         "name": "Distance today"
+      },
+      "co2_saved_total": {
+        "name": "CO₂ saved overall"
+      },
+      "trees_saved_total": {
+        "name": "Trees saved overall"
       }
     },
     "binary_sensor": {

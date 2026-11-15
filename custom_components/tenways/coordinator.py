@@ -166,10 +166,26 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                     telemetry = {}
                 read_ok = read_ok or bool(telemetry)
                 live = self._account(telemetry)
+                published = False
+
+                def publish_read() -> None:
+                    """Show the values as read, before a reset clears the trip: the ride then
+                    appears in the trip sensors' history and long-term statistics."""
+                    nonlocal published
+                    published = True
+                    self._last_successful_read = datetime.now(timezone.utc)
+                    self.data = TenwaysData(
+                        rssi=rssi, bluetooth_visible=True, **live,
+                        last_advertisement=self._last_advertisement,
+                        last_successful_read=self._last_successful_read,
+                        **self._last,
+                    )
+                    self.async_update_listeners()
+
                 if telemetry:
                     # Right after the read, in the same connection: the bike may leave range soon.
                     try:
-                        await self._async_automatic_writes(bike)
+                        await self._async_automatic_writes(bike, publish_read)
                     except Exception:  # never lose the read over an automatic write
                         _LOGGER.exception("Automatic write to %s failed", self.address)
                 # Optional reads only when advertised as present in the GATT table.
@@ -187,7 +203,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                         if isinstance(exc, asyncio.CancelledError):
                             raise
                         _LOGGER.debug("Optional TENWAYS %s characteristic not readable: %s", key, exc)
-                if read_ok:
+                if read_ok and not published:
                     # Only a valid reply dates the kept values; a failed status read must not.
                     self._last_successful_read = datetime.now(timezone.utc)
                 return TenwaysData(
@@ -229,7 +245,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         if self.totals is not None:
             self.totals.async_clock_set(moment)
 
-    async def _async_automatic_writes(self, bike: TenwaysBike) -> None:
+    async def _async_automatic_writes(self, bike: TenwaysBike, publish_read=None) -> None:
         """The options' clock sync and trip reset; a failure is retried on a later read."""
         totals = self.totals
         new_session, self._new_session = self._new_session, False
@@ -237,7 +253,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
             return
         now = dt_util.now()
         # The trip first, right after the read: nothing ridden in between can be lost.
-        await self._async_automatic_trip_reset(bike, now, new_session)
+        await self._async_automatic_trip_reset(bike, now, new_session, publish_read)
         if self.auto_clock and totals.clock_due(now):
             try:
                 await asyncio.wait_for(bike.set_clock(now), KING_METER_TIMEOUT_SECONDS)
@@ -248,7 +264,9 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                 _LOGGER.info("Set the clock of %s to %s (automatic)", self.address, now)
                 totals.async_clock_set(now)
 
-    async def _async_automatic_trip_reset(self, bike: TenwaysBike, now: datetime, new_session: bool) -> None:
+    async def _async_automatic_trip_reset(
+        self, bike: TenwaysBike, now: datetime, new_session: bool, publish_read=None,
+    ) -> None:
         totals = self.totals
         assert totals is not None
         if not self._trip_reset_wanted(now, new_session):
@@ -258,6 +276,8 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         if not (self._last.get('trip_distance') or self._last.get('ride_seconds')):
             totals.async_trip_reset_done(now)
             return
+        if publish_read is not None:
+            publish_read()
         try:
             await asyncio.wait_for(bike.reset_trip(), KING_METER_TIMEOUT_SECONDS)
         except (TenwaysError, TenwaysProtocolError, BleakError, OSError, TimeoutError) as exc:
