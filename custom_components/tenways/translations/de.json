@@ -10,7 +10,7 @@
       },
       "bluetooth_confirm": {
         "title": "TENWAYS-Fahrrad hinzufügen",
-        "description": "{name} hinzufügen? Werte werden gelesen. An das Rad gehen höchstens die Uhrzeit und der Trip-Reset, per Taste oder wenn du die automatischen Optionen einschaltest, und nur bei einem Modell, das an einem Rad bestätigt wurde (siehe README)."
+        "description": "{name} hinzufügen? Werte werden gelesen. An das Rad gehen höchstens die Uhrzeit und der Trip-Reset, per Taste oder wenn du die automatischen Optionen einschaltest, und nur bei einem Modell, das an einem Rad bestätigt wurde, oder wenn du es in den Optionen erlaubst (siehe README)."
       }
     },
     "error": {
@@ -177,7 +177,7 @@
       "message": "Der Trip konnte nicht zurückgesetzt werden: {error}"
     },
     "writes_not_confirmed": {
-      "message": "Schreiben ans Rad ist aus: {name} ist an einem Rad noch nicht bestätigt. Nur bestätigte Modelle erhalten Uhrzeit und Trip-Reset; gelesen wird das Rad weiter."
+      "message": "Schreiben ans Rad ist aus: {name} ist an einem Rad noch nicht bestätigt. Nur bestätigte Modelle erhalten Uhrzeit und Trip-Reset, es sei denn, du erlaubst unbestätigte Modelle in den Optionen; gelesen wird das Rad weiter."
     }
   },
   "selector": {

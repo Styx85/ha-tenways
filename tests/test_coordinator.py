@@ -638,3 +638,15 @@ async def test_the_option_never_allows_writes_to_an_unsupported_or_unnamed_bike(
         with pytest.raises(HomeAssistantError):
             await coordinator.async_set_clock(MOMENT)
     connect.assert_not_called()
+
+
+async def test_the_option_logs_a_warning_for_an_unconfirmed_model(hass, advertising, caplog):
+    coordinator = TenwaysCoordinator(
+        hass, ADDRESS, 300, name="AGOX", advertised_name="AGOX", allow_unconfirmed_writes=True,
+    )
+    coordinator._bike(object())
+    assert "allowed by the option for unconfirmed models" in caplog.text
+    off = TenwaysCoordinator(hass, ADDRESS, 300, name="AGOX", advertised_name="AGOX")
+    caplog.clear()
+    off._bike(object())
+    assert "allowed by the option" not in caplog.text

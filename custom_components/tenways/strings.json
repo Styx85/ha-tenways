@@ -10,7 +10,7 @@
       },
       "bluetooth_confirm": {
         "title": "Add TENWAYS bicycle",
-        "description": "Add {name}? Values are read. The bike receives at most the clock sync and the trip reset, by button or when you switch on the automatic options, and only if this model is confirmed on a bike (see the README)."
+        "description": "Add {name}? Values are read. The bike receives at most the clock sync and the trip reset, by button or when you switch on the automatic options, and only if this model is confirmed on a bike, or you allow it in the options (see the README)."
       }
     },
     "error": {
@@ -177,7 +177,7 @@
       "message": "Could not reset the trip: {error}"
     },
     "writes_not_confirmed": {
-      "message": "Writing to the bike is switched off: {name} is not confirmed on a bike yet. Only confirmed models accept the clock sync and the trip reset; the bike is still read."
+      "message": "Writing to the bike is switched off: {name} is not confirmed on a bike yet. Only confirmed models accept the clock sync and the trip reset, unless you allow unconfirmed models in the options; the bike is still read."
     }
   },
   "selector": {
