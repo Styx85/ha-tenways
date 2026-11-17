@@ -46,6 +46,10 @@ Reading is the default: every poll sends the two read requests the TENWAYS app s
 
 Both go **only to a model that is confirmed on a bike**: today the Longtail Duo (✅ in the table above). For every other model the buttons, the switch and the dropdown are unavailable, the automatic options are not offered (a stored choice is ignored), and the bike is only read. A bike added by its address counts only once it has advertised its real name; the placeholder name it gets until then never allows a write. The app itself sends the clock only to AGOX, AGOT, CARGO and the Longtail Duo.
 
+Writes only ever go to the address of the bike you added: every entry belongs to one Bluetooth address, and a bike nearby that you did not add is never connected to. Adding a bike always needs your confirmation, also when it was discovered.
+
+The option *Also write to models not confirmed on a bike* (off by default, per bike, in Configure) lifts the model check for supported but untested models (see the table). A model whose protocol is not implemented, or a bike that has not advertised its name yet, stays read-only. Use it at your own risk and tell us in an issue how it went.
+
 A model joins the confirmed list after someone has confirmed the write on such a bike: a diagnostics download and what the display showed, in an [issue](https://github.com/Styx85/ha-tenways/issues).
 
 ## Installation

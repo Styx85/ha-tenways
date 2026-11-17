@@ -7,7 +7,7 @@ from homeassistant.const import CONF_NAME, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
-from .const import CONF_ADDRESS, CONF_ADVERTISED_NAME, CONF_AUTO_CLOCK, CONF_TRIP_RESET, TRIP_RESET_OFF, CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE, DOMAIN, POLL_SECONDS
+from .const import CONF_ADDRESS, CONF_ADVERTISED_NAME, CONF_AUTO_CLOCK, CONF_TRIP_RESET, TRIP_RESET_OFF, CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE, CONF_UNCONFIRMED_WRITES, DOMAIN, POLL_SECONDS
 from .coordinator import TenwaysCoordinator
 from .totals import TenwaysTotals
 
@@ -59,6 +59,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TenwaysConfigEntry) -> b
         trip_reset=entry.options.get(CONF_TRIP_RESET, TRIP_RESET_OFF),
         auto_clock=entry.options.get(CONF_AUTO_CLOCK, False),
         advertised_name=entry.data.get(CONF_ADVERTISED_NAME), on_name_seen=name_seen,
+        allow_unconfirmed_writes=entry.options.get(CONF_UNCONFIRMED_WRITES, False),
     )
     entry.runtime_data = coordinator
     # Options that need a reload when they change (see _async_options_updated).

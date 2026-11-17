@@ -31,3 +31,5 @@ TRIP_RESET_RIDE = "ride"  # at the first read each time the bike appears (switch
 TRIP_RESET_MODES = (TRIP_RESET_OFF, TRIP_RESET_DAILY, TRIP_RESET_RIDE)
 # Set the clock in the same connection after a daylight saving change or every 90 days.
 CONF_AUTO_CLOCK = "auto_clock"
+# Option: also write to supported models that are not confirmed on a bike (off by default).
+CONF_UNCONFIRMED_WRITES = "unconfirmed_writes"

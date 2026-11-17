@@ -21,7 +21,7 @@ async def test_options_flow_sets_poll_interval(hass):
         result = await hass.config_entries.options.async_configure(result["flow_id"], {CONF_POLL_SECONDS: 120})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     # A model not confirmed on a bike (here: not loaded yet) is not offered the automatic writes.
-    assert entry.options == {CONF_POLL_SECONDS: 120, CONF_RIDE_HOURS_BEFORE: 0.0}
+    assert entry.options == {CONF_POLL_SECONDS: 120, CONF_RIDE_HOURS_BEFORE: 0.0, "unconfirmed_writes": False}
 
 
 async def test_options_flow_sets_ride_time_before(hass):
@@ -233,7 +233,8 @@ async def test_options_offer_the_automatic_writes_for_a_confirmed_model(hass):
 
 async def test_options_hide_the_automatic_writes_for_an_unconfirmed_model(hass):
     _entry, _result, keys = await _options_form(hass, writes=False)
-    assert keys == {CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE}
+    # The option to allow writes is always offered, so an unconfirmed model can be unlocked.
+    assert keys == {CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE, "unconfirmed_writes"}
 
 
 async def test_saving_options_keeps_a_stored_automatic_choice_of_an_unconfirmed_model(hass):

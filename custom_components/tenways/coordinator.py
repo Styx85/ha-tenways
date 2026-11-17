@@ -74,6 +74,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         totals: TenwaysTotals | None = None, name: str | None = None,
         trip_reset: str = TRIP_RESET_OFF, auto_clock: bool = False,
         advertised_name: str | None = None, on_name_seen: Callable[[str], None] | None = None,
+        allow_unconfirmed_writes: bool = False,
     ) -> None:
         super().__init__(
             hass, _LOGGER, name=f"TENWAYS {address}",
@@ -85,6 +86,8 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         # The name the bike really advertised (not a placeholder): the only basis for writes.
         self.advertised_name = advertised_name
         self._on_name_seen = on_name_seen
+        # The user's option to also write to supported models not yet confirmed on a bike.
+        self.allow_unconfirmed_writes = allow_unconfirmed_writes
         self.trip_reset = trip_reset
         # True until the first read after the bike (re)appeared: a switch-on or a return home.
         self._new_session = True
@@ -112,7 +115,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
     @property
     def writes_allowed(self) -> bool:
         """Whether writes (clock, trip reset; button or automatic) are allowed for this bike."""
-        return writes_confirmed(self.advertised_name)
+        return writes_confirmed(self.advertised_name, self.allow_unconfirmed_writes)
 
     def _note_name(self, name: str | None) -> None:
         """Remember the name the bike advertises; it decides whether writes are allowed."""

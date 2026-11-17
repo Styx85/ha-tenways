@@ -616,3 +616,25 @@ async def test_two_bikes_are_judged_separately(hass, advertising):
             await other.async_set_clock(MOMENT)
     assert duo_bike.writes == [CLOCK_WRITE]
     assert other_bike.writes == []
+
+
+async def test_the_option_allows_writes_to_a_supported_unconfirmed_model(hass, advertising):
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, advertised_name="AGOX", allow_unconfirmed_writes=True)
+    bike = FakeBike(replies={CLOCK_WRITE: CLOCK_REPLY})
+    assert coordinator.writes_allowed
+    with patch("custom_components.tenways.coordinator.establish_connection", return_value=bike) as connect:
+        await coordinator.async_set_clock(MOMENT)
+    assert bike.writes == [CLOCK_WRITE]
+    # Only to the address of this entry.
+    assert connect.call_args.args[2] == ADDRESS
+
+
+@pytest.mark.parametrize("name", ["AGO AIR", "CGO600", "CGO600_D", None])
+async def test_the_option_never_allows_writes_to_an_unsupported_or_unnamed_bike(hass, advertising, name):
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, advertised_name=name, allow_unconfirmed_writes=True)
+    bike = FakeBike(replies={CLOCK_WRITE: CLOCK_REPLY})
+    assert not coordinator.writes_allowed
+    with patch("custom_components.tenways.coordinator.establish_connection", return_value=bike) as connect:
+        with pytest.raises(HomeAssistantError):
+            await coordinator.async_set_clock(MOMENT)
+    connect.assert_not_called()
