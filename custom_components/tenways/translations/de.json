@@ -32,11 +32,13 @@
           "poll_seconds": "Abfrageintervall (Sekunden)",
           "ride_hours_before": "Fahrzeit vor der Zählung durch HA (Stunden)",
           "auto_clock": "Uhr automatisch stellen",
+          "unconfirmed_writes": "Auch an nicht bestätigte Modelle schreiben",
           "trip_reset": "Trip automatisch zurücksetzen"
         },
         "data_description": {
           "ride_hours_before": "Gesamtfahrzeit = dieser Wert plus alle Trips, die HA seitdem gelesen hat. Die Fahrzeit des Rads von vor dem ersten Trip-Reset eintragen, damit der Gesamtdurchschnitt (Kilometerstand ÷ Gesamtfahrzeit) stimmt.",
           "auto_clock": "In derselben Verbindung wie ein Abruf: nach einer Zeitumstellung, alle 90 Tage und beim ersten Einschalten der Option.",
+          "unconfirmed_writes": "Standardmäßig aus: nur ein an einem Rad bestätigtes Modell (derzeit das Longtail Duo) bekommt Uhrzeit und Trip-Reset, und geschrieben wird nur an die Adresse dieses Eintrags. Ein: auch unterstützte, aber ungetestete Modelle; die App sendet die Uhr nur an AGOX, AGOT, CARGO und das Longtail Duo. Auf eigenes Risiko, bitte per Issue berichten.",
           "trip_reset": "Direkt nach einem Abruf, in derselben Verbindung, damit es auch beim sofortigen Losfahren klappt. Erst wird gelesen, HA behält also jede Fahrt; ein leerer Trip wird nicht geschrieben. „Bei jedem Auftauchen“ setzt bei jedem Einschalten und beim Zurückkommen in Reichweite zurück."
         }
       }

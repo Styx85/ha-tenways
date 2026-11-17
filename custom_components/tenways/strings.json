@@ -32,11 +32,13 @@
           "poll_seconds": "Poll interval (seconds)",
           "ride_hours_before": "Ride time before HA counted (hours)",
           "auto_clock": "Set the clock automatically",
+          "unconfirmed_writes": "Also write to models not confirmed on a bike",
           "trip_reset": "Clear the trip automatically"
         },
         "data_description": {
           "ride_hours_before": "Total ride time = this value plus all trips HA has read since. Enter the bike's ride time from before the trip was first cleared, so that the overall average (odometer ÷ total ride time) is right.",
           "auto_clock": "In the same connection as a read: after a daylight saving change, every 90 days, and when first enabled.",
+          "unconfirmed_writes": "Off by default: only a model confirmed on a bike (today the Longtail Duo) receives the clock sync and the trip reset, and only this bike's own address is ever written to. On: also supported but untested models; the app sends the clock only to AGOX, AGOT, CARGO and the Longtail Duo. Use at your own risk and report how it went in an issue.",
           "trip_reset": "Right after a read, in the same connection, so it works when you ride off at once. The read comes first, so HA keeps every ride; an empty trip is not written. “Each time the bike appears” clears it at every switch-on and when it comes back into range."
         }
       }

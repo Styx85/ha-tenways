@@ -22,14 +22,16 @@ def model_profile(name: str | None) -> Profile:
     return LONGTAIL_DUO
 
 
-def writes_confirmed(advertised_name: str | None) -> bool:
+def writes_confirmed(advertised_name: str | None, allow_unconfirmed: bool = False) -> bool:
     """Whether the integration may write to a bike that advertises ``advertised_name``.
 
     Only a model confirmed on a bike (see ``Profile.tested``), judged by the name the bike
     really advertised. There is no fallback here: an unknown name, or none seen yet, never
     allows a write, unlike ``model_profile`` which keeps the Longtail Duo's read requests.
+    ``allow_unconfirmed`` (the user's option) also admits supported models not yet tested on a
+    bike; a model whose protocol is not implemented is never admitted.
     """
     if not advertised_name:
         return False
     profile = profile_for(advertised_name)
-    return profile.supported and profile.tested
+    return profile.supported and (profile.tested or allow_unconfirmed)

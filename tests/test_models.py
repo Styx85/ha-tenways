@@ -37,3 +37,22 @@ def test_model_profile(name, profile):
 ])
 def test_writes_are_only_confirmed_for_the_tested_model(name, allowed):
     assert writes_confirmed(name) is allowed
+
+
+@pytest.mark.parametrize(("name", "allowed"), [
+    ("Longtail Duo", True),
+    # Supported but untested models are admitted by the user's option ...
+    ("CGO009_D", True),
+    ("CGO009", True),
+    ("CGO800", True),
+    ("AGOX", True),
+    # ... a protocol that is not implemented, and a bike that never gave its name, never.
+    ("AGO AIR", False),
+    ("CGO600", False),
+    ("CGO600_D", False),
+    ("TENWAYS B3:0D", True),  # judged like any unknown name: the default driver (AGO) is supported
+    ("", False),
+    (None, False),
+])
+def test_the_option_admits_only_supported_models(name, allowed):
+    assert writes_confirmed(name, allow_unconfirmed=True) is allowed
