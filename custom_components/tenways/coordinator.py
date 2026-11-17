@@ -151,6 +151,12 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
                     "%s (%s) uses the untested %s profile. Please report whether the values match the "
                     "display, with a diagnostics download: %s", self.model_name, self.address, profile.name, ISSUES_URL,
                 )
+                if self.writes_allowed:
+                    _LOGGER.warning(
+                        "Writes to %s (%s) are allowed by the option for unconfirmed models: the clock sync and "
+                        "the trip reset are not confirmed on this model. Please report how they went: %s",
+                        self.advertised_name, self.address, ISSUES_URL,
+                    )
         return TenwaysBike(client, name=self.model_name, profile=profile)
 
     async def _async_update_data(self) -> TenwaysData:
