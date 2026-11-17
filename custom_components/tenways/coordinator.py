@@ -1,7 +1,8 @@
 """TENWAYS BLE telemetry and diagnostics.
 
 Reading is the default. The only writes are the clock sync and the trip reset, sent when a
-button is pressed or when an automatic option is on, and only to a model confirmed on a bike.
+button is pressed or when an automatic option is on, and only to a model confirmed on a bike
+(or to a supported model when the user switched on the option for unconfirmed models).
 """
 from __future__ import annotations
 
