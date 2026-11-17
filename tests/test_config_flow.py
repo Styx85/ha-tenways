@@ -7,7 +7,9 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from tenways_ble.const import TENWAYS_SERVICE_UUID
 
-from custom_components.tenways.const import CONF_ADDRESS, CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE, DOMAIN
+from custom_components.tenways.const import (
+    CONF_ADDRESS, CONF_ADVERTISED_NAME, CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE, DOMAIN,
+)
 
 
 async def test_options_flow_sets_poll_interval(hass):
@@ -18,9 +20,8 @@ async def test_options_flow_sets_poll_interval(hass):
     with patch("custom_components.tenways.async_setup_entry", return_value=True):
         result = await hass.config_entries.options.async_configure(result["flow_id"], {CONF_POLL_SECONDS: 120})
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert entry.options == {
-        CONF_POLL_SECONDS: 120, CONF_RIDE_HOURS_BEFORE: 0.0, "trip_reset": "off", "auto_clock": False,
-    }
+    # A model not confirmed on a bike (here: not loaded yet) is not offered the automatic writes.
+    assert entry.options == {CONF_POLL_SECONDS: 120, CONF_RIDE_HOURS_BEFORE: 0.0}
 
 
 async def test_options_flow_sets_ride_time_before(hass):
@@ -155,3 +156,90 @@ async def test_typed_address_of_unsupported_model_is_explained(hass):
         result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_ADDRESS: "e8:88:6c:31:b3:0d"})
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "unsupported_model"
+
+
+# --- The advertised name, unique titles and the gated options --------------------------------
+
+async def _confirm_discovery(hass, info):
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_BLUETOOTH}, data=info)
+    with patch("custom_components.tenways.async_setup_entry", return_value=True):
+        return await hass.config_entries.flow.async_configure(result["flow_id"], {})
+
+
+async def test_discovery_stores_the_advertised_name(hass):
+    result = await _confirm_discovery(hass, _advertisement("Longtail Duo"))
+    assert result["data"][CONF_ADVERTISED_NAME] == "Longtail Duo"
+
+
+async def test_discovery_without_a_name_stores_none(hass):
+    info = _advertisement(None, [TENWAYS_SERVICE_UUID])
+    result = await _confirm_discovery(hass, info)
+    assert CONF_ADVERTISED_NAME not in result["data"]
+    assert result["data"]["name"].startswith("TENWAYS ")  # the placeholder is only a title
+
+
+async def test_an_address_as_the_name_is_not_stored(hass):
+    info = _advertisement("E8:88:6C:31:B3:0D", [TENWAYS_SERVICE_UUID])
+    result = await _confirm_discovery(hass, info)
+    assert CONF_ADVERTISED_NAME not in result["data"]
+
+
+async def test_typed_address_of_a_visible_bike_stores_its_name(hass):
+    with _visible(_advertisement("Longtail Duo")):
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+        with patch("custom_components.tenways.async_setup_entry", return_value=True):
+            result = await hass.config_entries.flow.async_configure(
+                result["flow_id"], {CONF_ADDRESS: "E8:88:6C:31:B3:0D"},
+            )
+    assert result["data"][CONF_ADVERTISED_NAME] == "Longtail Duo"
+
+
+async def test_typed_address_of_an_absent_bike_stores_no_name(hass):
+    with _visible():
+        result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+        with patch("custom_components.tenways.async_setup_entry", return_value=True):
+            result = await hass.config_entries.flow.async_configure(
+                result["flow_id"], {CONF_ADDRESS: "aa:bb:cc:dd:ee:ff"},
+            )
+    assert CONF_ADVERTISED_NAME not in result["data"]
+    assert result["data"]["name"] == "TENWAYS EE:FF"
+
+
+async def test_a_second_bike_with_the_same_name_gets_its_address_in_the_title(hass):
+    first = await _confirm_discovery(hass, _advertisement("Longtail Duo"))
+    assert first["title"] == "Longtail Duo"
+    second_info = _advertisement("Longtail Duo")
+    second_info.address = "aa:bb:cc:dd:ee:ff"
+    second = await _confirm_discovery(hass, second_info)
+    assert second["title"] == "Longtail Duo EE:FF"
+    assert second["data"]["name"] == "Longtail Duo"  # the model is still decided by the real name
+    assert second["data"][CONF_ADVERTISED_NAME] == "Longtail Duo"
+
+
+async def _options_form(hass, writes: bool, options=None):
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_ADDRESS: "E8:88:6C:31:B3:0D"}, unique_id="E8:88:6C:31:B3:0D", options=options or {},
+    )
+    entry.add_to_hass(hass)
+    entry.runtime_data = SimpleNamespace(writes_allowed=writes)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    return entry, result, {str(key) for key in result["data_schema"].schema}
+
+
+async def test_options_offer_the_automatic_writes_for_a_confirmed_model(hass):
+    _entry, _result, keys = await _options_form(hass, writes=True)
+    assert {"trip_reset", "auto_clock"} <= keys
+
+
+async def test_options_hide_the_automatic_writes_for_an_unconfirmed_model(hass):
+    _entry, _result, keys = await _options_form(hass, writes=False)
+    assert keys == {CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE}
+
+
+async def test_saving_options_keeps_a_stored_automatic_choice_of_an_unconfirmed_model(hass):
+    entry, result, _keys = await _options_form(hass, writes=False, options={"trip_reset": "daily", "auto_clock": True})
+    with patch("custom_components.tenways.async_setup_entry", return_value=True):
+        await hass.config_entries.options.async_configure(result["flow_id"], {CONF_POLL_SECONDS: 120})
+    # Not offered, not discarded (and the coordinator ignores it for this model).
+    assert entry.options["trip_reset"] == "daily" and entry.options["auto_clock"] is True
+    assert entry.options[CONF_POLL_SECONDS] == 120

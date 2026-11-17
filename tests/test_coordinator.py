@@ -73,7 +73,7 @@ def advertising():
 
 
 async def _refresh(hass, *bikes):
-    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, advertised_name="Longtail Duo")
     results = []
     with patch("custom_components.tenways.coordinator.establish_connection", side_effect=list(bikes)):
         for _ in bikes:
@@ -289,7 +289,7 @@ MOMENT = datetime(2026, 10, 18, 14, 32, 18)
 
 
 async def test_set_clock_sends_the_app_frame_and_disconnects(hass, advertising):
-    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, advertised_name="Longtail Duo")
     bike = FakeBike(replies={CLOCK_WRITE: CLOCK_REPLY})
     with patch("custom_components.tenways.coordinator.establish_connection", return_value=bike):
         await coordinator.async_set_clock(MOMENT)
@@ -301,7 +301,7 @@ CLEAR_TRIP = bytes.fromhex("63 00 04 01 2d 01 01 63 e8 45")
 
 
 async def test_reset_trip_sends_the_app_frame_and_disconnects(hass, advertising):
-    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, advertised_name="Longtail Duo")
     bike = FakeBike(replies={STATUS_REQUEST: STATUS_REPLY, INFO_REQUEST: INFO_REPLY, CLEAR_TRIP: CLEAR_TRIP})
     with patch("custom_components.tenways.coordinator.establish_connection", return_value=bike), \
          patch.object(TenwaysCoordinator, "async_request_refresh") as refresh:
@@ -312,7 +312,7 @@ async def test_reset_trip_sends_the_app_frame_and_disconnects(hass, advertising)
 
 
 async def test_reset_trip_without_acknowledgement_is_reported(hass, advertising):
-    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, advertised_name="Longtail Duo")
     bike = FakeBike(replies={})
     with patch("custom_components.tenways.coordinator.establish_connection", return_value=bike), \
          patch("custom_components.tenways.coordinator.KING_METER_TIMEOUT_SECONDS", 0.05), \
@@ -324,7 +324,7 @@ async def test_reset_trip_without_acknowledgement_is_reported(hass, advertising)
 
 
 async def test_set_clock_needs_the_bike_in_range(hass):
-    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, advertised_name="Longtail Duo")
     with patch("custom_components.tenways.coordinator.bluetooth.async_last_service_info", return_value=None), \
          patch("custom_components.tenways.coordinator.bluetooth.async_ble_device_from_address", return_value=None), \
          patch("custom_components.tenways.coordinator.establish_connection") as connect:
@@ -334,7 +334,7 @@ async def test_set_clock_needs_the_bike_in_range(hass):
 
 
 async def test_set_clock_without_acknowledgement_is_reported(hass, advertising):
-    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, advertised_name="Longtail Duo")
     bike = FakeBike(replies={})
     with patch("custom_components.tenways.coordinator.establish_connection", return_value=bike), \
          patch("custom_components.tenways.coordinator.KING_METER_TIMEOUT_SECONDS", 0.05):
@@ -351,7 +351,7 @@ async def test_connection_failure_while_setting_clock_is_reported(hass, advertis
 
 
 async def test_poll_waits_for_a_clock_sync_in_progress(hass, advertising):
-    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, advertised_name="Longtail Duo")
     async with coordinator._ble_lock:
         refresh = asyncio.create_task(coordinator.async_refresh())
         await asyncio.sleep(0.05)
@@ -369,7 +369,9 @@ ZERO_TRIP_REPLY = build_frame(TYPE_READ, CMD_STATUS, STATUS_REPLY[4:-3]
 CLOCK_MOMENT = datetime(2026, 10, 18, 14, 32, 18, tzinfo=ZoneInfo("US/Pacific"))  # summer time
 
 
-async def _refresh_with_options(hass, *bikes, trip_reset="off", auto_clock=False, at=CLOCK_MOMENT, between=None):
+async def _refresh_with_options(
+    hass, *bikes, trip_reset="off", auto_clock=False, at=CLOCK_MOMENT, between=None, advertised="Longtail Duo",
+):
     """Poll once per bike; ``between(coordinator)`` runs before each poll after the first."""
     from custom_components.tenways.totals import TenwaysTotals
 
@@ -377,6 +379,7 @@ async def _refresh_with_options(hass, *bikes, trip_reset="off", auto_clock=False
     await totals.async_load()
     coordinator = TenwaysCoordinator(
         hass, ADDRESS, 300, totals, "Longtail Duo", trip_reset=trip_reset, auto_clock=auto_clock,
+        advertised_name=advertised,
     )
     coordinator.entities_ready = True
     results = []
@@ -471,7 +474,7 @@ async def test_ride_is_published_before_the_reset_clears_it(hass, advertising):
 
     totals = TenwaysTotals(hass, "entry")
     await totals.async_load()
-    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, totals, "Longtail Duo", trip_reset="ride")
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, totals, "Longtail Duo", trip_reset="ride", advertised_name="Longtail Duo")
     coordinator.entities_ready = True
     seen = []
     unsub = coordinator.async_add_listener(lambda: seen.append(coordinator.data.trip_distance))
@@ -492,7 +495,7 @@ async def test_no_automatic_reset_before_the_entities_exist(hass, advertising):
 
     totals = TenwaysTotals(hass, "entry")
     await totals.async_load()
-    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, totals, "Longtail Duo", trip_reset="ride")
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, totals, "Longtail Duo", trip_reset="ride", advertised_name="Longtail Duo")
     first = FakeBike(replies={STATUS_REQUEST: _status(3, 600), INFO_REQUEST: INFO_REPLY, CLEAR_TRIP: CLEAR_TRIP})
     second = FakeBike(replies={STATUS_REQUEST: _status(3, 600), CLEAR_TRIP: CLEAR_TRIP})
     with patch("custom_components.tenways.coordinator.establish_connection", side_effect=[first, second]), \
@@ -507,7 +510,7 @@ async def test_no_automatic_reset_before_the_entities_exist(hass, advertising):
 
 
 async def test_reset_button_publishes_the_ride_first(hass, advertising):
-    coordinator = TenwaysCoordinator(hass, ADDRESS, 300)
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, advertised_name="Longtail Duo")
     poll = FakeBike(replies={STATUS_REQUEST: _status(2, 400), INFO_REQUEST: INFO_REPLY})
     press = FakeBike(replies={STATUS_REQUEST: _status(3, 600), CLEAR_TRIP: CLEAR_TRIP})
     seen = []
@@ -519,3 +522,97 @@ async def test_reset_button_publishes_the_ride_first(hass, advertising):
     unsub()
     assert seen[0] == 3.0  # the ride as read when the button was pressed, before it is cleared
     assert press.writes == [STATUS_REQUEST, CLEAR_TRIP]
+
+
+# --- Writes only to a model confirmed on a bike ---------------------------------------------
+
+def _writes(bike):
+    """The write frames (type 0x63) sent to the bike; reads (0x62) are not counted."""
+    return [w for w in bike.writes if w[0] == 0x63]
+
+
+class AnyReadBike(FakeBike):
+    """Answers the read requests of every profile (they differ per model) with the recorded replies."""
+
+    async def write_gatt_char(self, uuid, data, response=None):
+        data = bytes(data)
+        if data[0] == 0x62 and len(data) > 3 and data[3] in (0x0B, 0x04):
+            self.replies[data] = STATUS_REPLY if data[3] == 0x0B else INFO_REPLY
+        await super().write_gatt_char(uuid, data, response)
+
+
+@pytest.mark.parametrize("name", ["CGO800", "CGO009", "CGO009_D", "AGOX", "TENWAYS B3:0D", "Tenways-ble-400A59", None])
+async def test_clock_and_trip_reset_are_refused_for_an_unconfirmed_model(hass, advertising, name):
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, advertised_name=name)
+    bike = FakeBike(replies={CLOCK_WRITE: CLOCK_REPLY, CLEAR_TRIP: CLEAR_TRIP})
+    assert not coordinator.writes_allowed
+    with patch("custom_components.tenways.coordinator.establish_connection", return_value=bike) as connect:
+        with pytest.raises(HomeAssistantError) as error:
+            await coordinator.async_set_clock(MOMENT)
+        assert error.value.translation_key == "writes_not_confirmed"
+        with pytest.raises(HomeAssistantError):
+            await coordinator.async_reset_trip()
+    connect.assert_not_called()  # not even a connection
+    assert bike.writes == []
+
+
+# (CGO009 asks for more fields than the recorded reply has; its refusal is tested above.)
+@pytest.mark.parametrize("name", ["AGOX", "TENWAYS B3:0D", None])
+async def test_automatic_options_are_ignored_for_an_unconfirmed_model(hass, advertising, name):
+    first = AnyReadBike(replies={})
+    # The bike advertises this name (the fixture's default would be the Longtail Duo).
+    info = SimpleNamespace(time=time.monotonic(), rssi=-60, name=name)
+    with patch("custom_components.tenways.coordinator.bluetooth.async_last_service_info", return_value=info):
+        totals, (data,) = await _refresh_with_options(
+            hass, first, trip_reset="daily", auto_clock=True, advertised=name,
+        )
+    # The read worked, so the automatic writes would have run for a confirmed model.
+    assert data.traction_battery == 68
+    assert _writes(first) == []
+
+
+async def test_automatic_options_still_work_for_the_confirmed_model(hass, advertising):
+    first = FakeBike(replies={STATUS_REQUEST: _status(5, 600), INFO_REQUEST: INFO_REPLY, CLEAR_TRIP: CLEAR_TRIP,
+                              CLOCK_WRITE: CLOCK_REPLY})
+    await _refresh_with_options(hass, first, trip_reset="daily", auto_clock=True)
+    assert CLEAR_TRIP in first.writes
+
+
+async def test_the_unknown_name_fallback_never_allows_a_write(hass):
+    # model_profile() keeps the Longtail Duo's read requests for an unknown name ...
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, name="TENWAYS B3:0D")
+    assert coordinator.profile.tested and coordinator.profile.name == "Longtail Duo"
+    # ... but that is a fallback for reading, not a name the bike advertised.
+    assert not coordinator.writes_allowed
+
+
+async def test_a_name_seen_later_allows_writes_and_is_remembered(hass):
+    seen = []
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, name="TENWAYS B3:0D", on_name_seen=seen.append)
+    changed = []
+    coordinator.async_add_listener(lambda: changed.append(coordinator.writes_allowed))
+    coordinator.async_handle_advertisement(SimpleNamespace(name="Longtail Duo"), None)
+    assert coordinator.writes_allowed
+    assert seen == ["Longtail Duo"]
+    assert changed[-1] is True  # the write entities are told
+    await coordinator.async_shutdown()
+
+
+async def test_an_address_instead_of_a_name_does_not_change_it(hass):
+    coordinator = TenwaysCoordinator(hass, ADDRESS, 300, advertised_name="Longtail Duo")
+    for name in (None, "", ADDRESS, ADDRESS.lower(), ADDRESS.replace(":", "-")):
+        coordinator.async_handle_advertisement(SimpleNamespace(name=name), None)
+    assert coordinator.advertised_name == "Longtail Duo" and coordinator.writes_allowed
+    await coordinator.async_shutdown()
+
+
+async def test_two_bikes_are_judged_separately(hass, advertising):
+    duo = TenwaysCoordinator(hass, ADDRESS, 300, advertised_name="Longtail Duo")
+    other = TenwaysCoordinator(hass, "AA:BB:CC:DD:EE:FF", 300, advertised_name="CGO800")
+    duo_bike, other_bike = FakeBike(replies={CLOCK_WRITE: CLOCK_REPLY}), FakeBike(replies={CLOCK_WRITE: CLOCK_REPLY})
+    with patch("custom_components.tenways.coordinator.establish_connection", side_effect=[duo_bike, other_bike]):
+        await duo.async_set_clock(MOMENT)
+        with pytest.raises(HomeAssistantError):
+            await other.async_set_clock(MOMENT)
+    assert duo_bike.writes == [CLOCK_WRITE]
+    assert other_bike.writes == []

@@ -8,12 +8,12 @@ Unofficial integration for TENWAYS e-bikes over Bluetooth, built on the [`tenway
 
 - **Battery and ride data:** traction battery, odometer, trip distance, ride time, maximum and average speed, light, remaining range.
 - **Totals HA keeps for you:** total ride time, average and maximum speed over all trips, ride time and distance today, and CO₂ and trees saved over all rides (the display's formula, approximated). They keep counting when the trip is cleared, are stored per bike and appear in the long-term statistics.
-- **Automatic trip reset and clock (options):** clear the trip once a day or for every ride, and keep the bike's clock right across daylight saving changes. Both happen in the connection that reads the bike, right after the read, so no ride is lost and it works even if you ride off at once.
-- **Buttons:** **Set clock** (the bike has no daylight saving) and **Reset trip**, each sending the TENWAYS app's own write; plus a disabled one that resets HA's overall maximum.
+- **Automatic trip reset and clock (options; only for models confirmed on a bike):** clear the trip once a day or for every ride, and keep the bike's clock right across daylight saving changes. Both happen in the connection that reads the bike, right after the read, so no ride is lost and it works even if you ride off at once.
+- **Buttons:** **Set clock** (the bike has no daylight saving) and **Reset trip**, each sending the TENWAYS app's own write (unavailable on a model not confirmed on a bike); plus a disabled one that resets HA's overall maximum.
 - Keeps the last values while the bike is off, also across restarts; polls immediately when the bike is switched on.
 - Diagnostics download with the address and serial number redacted.
 
-No unlock, light, firmware or configuration commands. Details on every entity, where its value comes from and how far it is confirmed: [docs/entities.md](https://github.com/Styx85/ha-tenways/blob/main/docs/entities.md).
+No unlock, light, firmware or configuration commands; the only writes are the clock sync and the trip reset, see [What the integration sends to the bike](#what-the-integration-sends-to-the-bike). Details on every entity, where its value comes from and how far it is confirmed: [docs/entities.md](https://github.com/Styx85/ha-tenways/blob/main/docs/entities.md).
 
 ## Supported bikes
 
@@ -33,7 +33,20 @@ The integration picks a profile from the name the bike advertises, the way the T
 
 - **Untested** means the requests follow the app, but no such bike has answered yet. The integration logs a warning with a link here. Please open an issue with a diagnostics download (Settings → Devices & services → TENWAYS → ⋮ → Download diagnostics) and say which values match the display.
 - **Not supported** models are not offered; adding one by its address while it advertises explains why, and an entry that sees such a name logs a warning. With a debug log, or an HCI capture of the TENWAYS app with that bike (never publish it raw; it contains other devices' traffic), they could be added. Until then, [tenways-bridge](https://github.com/stein155/tenways-bridge) (ESPHome firmware for an ESP32) has profiles for CGO600, CGO800 and the encrypted displays.
-- HA discovers a bike that advertises a name starting with `Longtail Duo`, `CGO009`, `CGO800`, `AGO` or `CARGO`, or the King Meter service (`43480001-…`). Otherwise add **TENWAYS BLE** by hand with the bike's Bluetooth address; an unknown name then uses the Longtail Duo's requests.
+- HA discovers a bike that advertises a name starting with `Longtail Duo`, `CGO009`, `CGO800`, `AGO` or `CARGO`, or the King Meter service (`43480001-…`). Otherwise add **TENWAYS BLE** by hand with the bike's Bluetooth address; an unknown name is read with the Longtail Duo's requests, and never written to until the bike has advertised a name that is confirmed on a bike.
+
+## What the integration sends to the bike
+
+Reading is the default: every poll sends the two read requests the TENWAYS app sends too. The only writes are the two the app also makes:
+
+| Write | Sent |
+|---|---|
+| **Set clock** (clock sync) | when you press the button, or by the option *Set the clock automatically* (after a daylight saving change, every 90 days and when first enabled) |
+| **Reset trip** (clear the trip) | when you press the button, or by the option *Clear the trip automatically* (once a day, or for each ride) |
+
+Both go **only to a model that is confirmed on a bike**: today the Longtail Duo (✅ in the table above). For every other model the buttons, the switch and the dropdown are unavailable, the automatic options are not offered (a stored choice is ignored), and the bike is only read. A bike added by its address counts only once it has advertised its real name; the placeholder name it gets until then never allows a write. The app itself sends the clock only to AGOX, AGOT, CARGO and the Longtail Duo.
+
+A model joins the confirmed list after someone has confirmed the write on such a bike: a diagnostics download and what the display showed, in an [issue](https://github.com/Styx85/ha-tenways/issues).
 
 ## Installation
 
@@ -56,7 +69,7 @@ Needs a Bluetooth adapter or an ESPHome Bluetooth proxy with active connections 
 
 ## Options
 
-Settings → Devices & services → TENWAYS → Configure. *Clear the trip automatically* (a dropdown) and *Set the clock automatically* (a switch) are also on the device page under Configuration and take effect at once:
+Settings → Devices & services → TENWAYS → Configure. *Clear the trip automatically* (a dropdown) and *Set the clock automatically* (a switch) are also on the device page under Configuration and take effect at once; both are offered only for a model confirmed on a bike (see [what the integration sends](#what-the-integration-sends-to-the-bike)):
 
 - **Poll interval:** 300 s by default (30–3600 s). Each poll is a short BLE connection.
 - **Ride time before HA counted:** hours ridden before the trip was first cleared, so that the total ride time and the overall average are right.

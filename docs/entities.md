@@ -23,7 +23,7 @@ Everything the integration exposes, where each value comes from, and how far it 
 - Last successful read (shows how old the kept values are), BLE signal, last advertisement and optional Device Information characteristics.
 - Bluetooth recently seen (diagnostic binary sensor): whether the bike advertised within the last 120 s.
 
-No unlock, light, power, firmware, configuration or pairing commands are implemented. The two recorded read requests (device info, 4 keys; status, 11 keys) are sent via the `4348…0002` write characteristic on every poll; replies arrive through `4348…0003` notify, are reassembled if fragmented and must pass length and CRC-16/MODBUS checks. The only other things ever sent are the two writes the TENWAYS app also makes, each only when you press its button: the clock sync (**Set clock**) and clearing the trip (**Reset trip**). No spontaneous notifications were observed without a request.
+No unlock, light, power, firmware, configuration or pairing commands are implemented. The two recorded read requests (device info, 4 keys; status, 11 keys) are sent via the `4348…0002` write characteristic on every poll; replies arrive through `4348…0003` notify, are reassembled if fragmented and must pass length and CRC-16/MODBUS checks. The only other things ever sent are the two writes the TENWAYS app also makes, by its button or by an automatic option, and only to a model confirmed on a bike (see the [README](../README.md#what-the-integration-sends-to-the-bike)): the clock sync (**Set clock**) and clearing the trip (**Reset trip**). No spontaneous notifications were observed without a request.
 
 ## Totals over all trips and per day
 

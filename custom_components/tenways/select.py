@@ -1,4 +1,4 @@
-"""TENWAYS select: how the integration clears the trip automatically."""
+"""TENWAYS select: how the integration clears the trip automatically (only for a model confirmed on a bike)."""
 from __future__ import annotations
 
 from homeassistant.components.select import SelectEntity
@@ -30,7 +30,7 @@ class TenwaysTripResetSelect(TenwaysEntity, SelectEntity):
 
     @property
     def available(self) -> bool:
-        return True
+        return self.coordinator.writes_allowed
 
     @property
     def current_option(self) -> str:

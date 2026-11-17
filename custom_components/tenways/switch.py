@@ -1,4 +1,4 @@
-"""TENWAYS switch: set the bike's clock automatically."""
+"""TENWAYS switch: set the bike's clock automatically (only for a model confirmed on a bike)."""
 from __future__ import annotations
 
 from typing import Any
@@ -31,7 +31,7 @@ class TenwaysAutoClockSwitch(TenwaysEntity, SwitchEntity):
 
     @property
     def available(self) -> bool:
-        return True
+        return self.coordinator.writes_allowed
 
     @property
     def is_on(self) -> bool:
