@@ -7,7 +7,7 @@ from homeassistant.const import CONF_NAME, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
-from .const import CONF_ADDRESS, CONF_AUTO_CLOCK, CONF_TRIP_RESET, TRIP_RESET_OFF, CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE, DOMAIN, POLL_SECONDS
+from .const import CONF_ADDRESS, CONF_ADVERTISED_NAME, CONF_AUTO_CLOCK, CONF_TRIP_RESET, TRIP_RESET_OFF, CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE, DOMAIN, POLL_SECONDS
 from .coordinator import TenwaysCoordinator
 from .totals import TenwaysTotals
 
@@ -28,8 +28,28 @@ def _remove_stale_entities(hass: HomeAssistant, entry: TenwaysConfigEntry) -> No
             registry.async_remove(entity_id)
 
 
+def _migrate_advertised_name(hass: HomeAssistant, entry: TenwaysConfigEntry) -> None:
+    """Entries from before the write gate: a name that came from an advertisement counts as seen.
+
+    Only the placeholder of a bike added by address ("TENWAYS AB:CD") does not.
+    """
+    if CONF_ADVERTISED_NAME in entry.data:
+        return
+    name = entry.data.get(CONF_NAME)
+    placeholder = f"TENWAYS {entry.data[CONF_ADDRESS][-5:].upper()}"
+    if name and name != placeholder:
+        hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_ADVERTISED_NAME: name})
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: TenwaysConfigEntry) -> bool:
     _remove_stale_entities(hass, entry)
+    _migrate_advertised_name(hass, entry)
+
+    def name_seen(name: str) -> None:
+        # Kept in the entry, so writes stay allowed after a restart and when the bike advertises
+        # without its name for a while.
+        if entry.data.get(CONF_ADVERTISED_NAME) != name:
+            hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_ADVERTISED_NAME: name})
     totals = TenwaysTotals(hass, entry.entry_id, entry.options.get(CONF_RIDE_HOURS_BEFORE, 0) * 3600)
     await totals.async_load()
     entry.async_on_unload(totals.async_track_midnight())
@@ -38,6 +58,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TenwaysConfigEntry) -> b
         entry.data.get(CONF_NAME) or entry.title,
         trip_reset=entry.options.get(CONF_TRIP_RESET, TRIP_RESET_OFF),
         auto_clock=entry.options.get(CONF_AUTO_CLOCK, False),
+        advertised_name=entry.data.get(CONF_ADVERTISED_NAME), on_name_seen=name_seen,
     )
     entry.runtime_data = coordinator
     # Options that need a reload when they change (see _async_options_updated).

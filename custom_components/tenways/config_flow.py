@@ -16,7 +16,7 @@ from tenways_ble.const import TENWAYS_SERVICE_UUID
 
 from .models import model_profile
 from .const import (
-    CONF_ADDRESS, CONF_AUTO_CLOCK, CONF_TRIP_RESET, TRIP_RESET_MODES, TRIP_RESET_OFF, KING_METER_NAME_PREFIXES, CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE, DOMAIN, MAX_POLL_SECONDS, MIN_POLL_SECONDS, NAME_PREFIX,
+    CONF_ADDRESS, CONF_ADVERTISED_NAME, CONF_AUTO_CLOCK, CONF_TRIP_RESET, TRIP_RESET_MODES, TRIP_RESET_OFF, KING_METER_NAME_PREFIXES, CONF_POLL_SECONDS, CONF_RIDE_HOURS_BEFORE, DOMAIN, MAX_POLL_SECONDS, MIN_POLL_SECONDS, NAME_PREFIX,
     POLL_SECONDS,
 )
 
@@ -45,11 +45,34 @@ def unsupported_reason(info: bluetooth.BluetoothServiceInfoBleak) -> str | None:
 MAC_PATTERN = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 
 
+def advertised_name(info: bluetooth.BluetoothServiceInfoBleak | None) -> str | None:
+    """The name a bike really advertised; None when there is none (or only its address)."""
+    name = info.name if info is not None else None
+    if not name or name.upper().replace("-", ":") == info.address.upper():
+        return None
+    return name
+
+
+def entry_data(address: str, name: str, advertised: str | None) -> dict:
+    """Entry data; the advertised name is only stored when the bike really sent one."""
+    data = {CONF_ADDRESS: address, CONF_NAME: name}
+    if advertised:
+        data[CONF_ADVERTISED_NAME] = advertised
+    return data
+
+
 class TenwaysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Configure a TENWAYS bike."""
 
     VERSION = 1
     _discovered: tuple[str, str] | None = None
+    _advertised: str | None = None
+
+    def _title(self, name: str, address: str) -> str:
+        """The entry's title; a second bike with the same name gets the end of its address."""
+        if any(entry.title == name for entry in self._async_current_entries()):
+            return f"{name} {address[-5:]}"
+        return name
 
     @staticmethod
     @callback
@@ -72,6 +95,7 @@ class TenwaysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._abort_if_unique_id_configured()
         name = discovery_info.name or f"TENWAYS {address[-5:]}"
         self._discovered = (address, name)
+        self._advertised = advertised_name(discovery_info)
         self.context["title_placeholders"] = {"name": name}
         return await self.async_step_bluetooth_confirm()
 
@@ -80,7 +104,9 @@ class TenwaysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         assert self._discovered is not None
         address, name = self._discovered
         if user_input is not None:
-            return self.async_create_entry(title=name, data={CONF_ADDRESS: address, CONF_NAME: name})
+            return self.async_create_entry(
+                title=self._title(name, address), data=entry_data(address, name, self._advertised),
+            )
         self._set_confirm_only()
         return self.async_show_form(step_id="bluetooth_confirm", description_placeholders={"name": name})
 
@@ -109,7 +135,8 @@ class TenwaysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._abort_if_unique_id_configured()
                 name = found.get(address, f"TENWAYS {address[-5:]}")
                 return self.async_create_entry(
-                    title=name, data={CONF_ADDRESS: address, CONF_NAME: name}
+                    title=self._title(name, address),
+                    data=entry_data(address, name, advertised_name(seen.get(address))),
                 )
             return self.async_show_form(
                 step_id="user", data_schema=self._schema(found),
@@ -128,21 +155,30 @@ class TenwaysConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class TenwaysOptionsFlow(OptionsFlow):
-    """Adjust how often HA connects to the bike, and the ride time from before HA counted."""
+    """Adjust how often HA connects to the bike, and the ride time from before HA counted.
+
+    The automatic trip reset and clock write to the bike, so they are offered only for a model
+    confirmed on a bike; a stored choice for any other model is kept but not used.
+    """
 
     async def async_step_init(self, user_input: dict | None = None) -> ConfigFlowResult:
-        if user_input is not None:
-            return self.async_create_entry(data=user_input)
         options = self.config_entry.options
-        return self.async_show_form(step_id="init", data_schema=vol.Schema({
+        coordinator = getattr(self.config_entry, "runtime_data", None)
+        writes = bool(coordinator is not None and coordinator.writes_allowed)
+        if user_input is not None:
+            kept = {k: v for k, v in options.items() if k in (CONF_TRIP_RESET, CONF_AUTO_CLOCK)}
+            return self.async_create_entry(data={**kept, **user_input})
+        schema = {
             vol.Required(CONF_POLL_SECONDS, default=options.get(CONF_POLL_SECONDS, POLL_SECONDS)): vol.All(
                 vol.Coerce(int), vol.Range(min=MIN_POLL_SECONDS, max=MAX_POLL_SECONDS)
             ),
             vol.Required(CONF_RIDE_HOURS_BEFORE, default=options.get(CONF_RIDE_HOURS_BEFORE, 0)): vol.All(
                 vol.Coerce(float), vol.Range(min=0, max=100000)
             ),
-            vol.Required(CONF_TRIP_RESET, default=options.get(CONF_TRIP_RESET, TRIP_RESET_OFF)): SelectSelector(
+        }
+        if writes:
+            schema[vol.Required(CONF_TRIP_RESET, default=options.get(CONF_TRIP_RESET, TRIP_RESET_OFF))] = SelectSelector(
                 SelectSelectorConfig(options=list(TRIP_RESET_MODES), translation_key=CONF_TRIP_RESET)
-            ),
-            vol.Required(CONF_AUTO_CLOCK, default=options.get(CONF_AUTO_CLOCK, False)): bool,
-        }))
+            )
+            schema[vol.Required(CONF_AUTO_CLOCK, default=options.get(CONF_AUTO_CLOCK, False))] = bool
+        return self.async_show_form(step_id="init", data_schema=vol.Schema(schema))

@@ -7,7 +7,8 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.discovery_flow import DiscoveryKey
 from pytest_homeassistant_custom_component.common import MockConfigEntry, mock_restore_cache_with_extra_data
 
-from custom_components.tenways.const import CONF_ADDRESS, DOMAIN
+from custom_components.tenways.const import CONF_ADDRESS, CONF_ADVERTISED_NAME, DOMAIN
+from homeassistant.const import CONF_NAME
 
 ADDRESS = "E8:88:6C:31:B3:0D"
 READ_AT = datetime(2026, 10, 18, 12, 0, tzinfo=timezone.utc)
@@ -18,9 +19,12 @@ def _stored(entity_id, value, unit=None):
     return (State(entity_id, str(value)), {"native_value": value, "native_unit_of_measurement": unit})
 
 
-async def _setup_without_bike(hass, stale=()):
+async def _setup_without_bike(hass, stale=(), name="Longtail Duo", data=None):
+    """Set up an entry for a bike that is not in range; ``data`` replaces the default entry data."""
+    if data is None:
+        data = {CONF_ADDRESS: ADDRESS, CONF_NAME: name, CONF_ADVERTISED_NAME: name}
     entry = MockConfigEntry(
-        domain=DOMAIN, data={CONF_ADDRESS: ADDRESS}, unique_id=ADDRESS, title="Longtail Duo",
+        domain=DOMAIN, data=data, unique_id=ADDRESS, title="Longtail Duo",
         discovery_keys={"bluetooth": (DiscoveryKey(domain="bluetooth", key=ADDRESS, version=1),)},
     )
     entry.add_to_hass(hass)
@@ -128,3 +132,59 @@ async def test_trip_reset_and_clock_options_on_the_device_page(hass):
     assert (coordinator.trip_reset, coordinator.auto_clock) == ("ride", True)
     assert hass.states.get("select.tenways_trip_reset").state == "ride"
     assert hass.states.get("switch.tenways_auto_clock").state == "on"
+
+
+async def test_write_entities_are_unavailable_for_an_unconfirmed_model(hass):
+    await _setup_without_bike(hass, name="CGO800")
+    for entity_id in ("button.tenways_set_clock", "button.tenways_reset_trip",
+                      "select.tenways_trip_reset", "switch.tenways_auto_clock"):
+        assert hass.states.get(entity_id).state == STATE_UNAVAILABLE, entity_id
+    # Reading is unaffected.
+    assert hass.states.get("binary_sensor.tenways_light") is not None
+
+
+async def test_write_entities_are_available_for_the_confirmed_model(hass):
+    await _setup_without_bike(hass)
+    for entity_id in ("button.tenways_set_clock", "button.tenways_reset_trip",
+                      "select.tenways_trip_reset", "switch.tenways_auto_clock"):
+        assert hass.states.get(entity_id).state != STATE_UNAVAILABLE, entity_id
+
+
+async def test_pressing_an_unavailable_clock_button_sends_nothing(hass):
+    from unittest.mock import AsyncMock
+
+    from homeassistant.exceptions import HomeAssistantError
+
+    from custom_components.tenways.coordinator import TenwaysCoordinator
+
+    with patch.object(TenwaysCoordinator, "async_set_clock", new=AsyncMock()) as set_clock:
+        await _setup_without_bike(hass, name="CGO800")
+        try:
+            await hass.services.async_call("button", "press", {"entity_id": "button.tenways_set_clock"}, blocking=True)
+        except HomeAssistantError:
+            pass
+    set_clock.assert_not_called()
+
+
+async def test_name_of_an_earlier_entry_counts_as_advertised(hass):
+    entry = await _setup_without_bike(hass, data={CONF_ADDRESS: ADDRESS, CONF_NAME: "Longtail Duo"})
+    assert entry.data[CONF_ADVERTISED_NAME] == "Longtail Duo"
+    assert entry.runtime_data.writes_allowed
+
+
+async def test_placeholder_name_of_a_bike_added_by_address_does_not(hass):
+    entry = await _setup_without_bike(hass, data={CONF_ADDRESS: ADDRESS, CONF_NAME: "TENWAYS B3:0D"})
+    assert CONF_ADVERTISED_NAME not in entry.data
+    assert not entry.runtime_data.writes_allowed
+    assert hass.states.get("button.tenways_set_clock").state == STATE_UNAVAILABLE
+
+
+async def test_the_real_name_is_stored_when_the_bike_advertises_it(hass):
+    from types import SimpleNamespace
+
+    entry = await _setup_without_bike(hass, data={CONF_ADDRESS: ADDRESS, CONF_NAME: "TENWAYS B3:0D"})
+    entry.runtime_data.async_handle_advertisement(SimpleNamespace(name="Longtail Duo"), None)
+    await hass.async_block_till_done()
+    assert entry.data[CONF_ADVERTISED_NAME] == "Longtail Duo"  # kept across a restart
+    assert hass.states.get("button.tenways_set_clock").state != STATE_UNAVAILABLE
+    await entry.runtime_data.async_shutdown()  # the advertisement started the expiry timer

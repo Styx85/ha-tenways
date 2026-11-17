@@ -1,7 +1,12 @@
-"""TENWAYS BLE telemetry and diagnostics; writes only on an explicit button press."""
+"""TENWAYS BLE telemetry and diagnostics.
+
+Reading is the default. The only writes are the clock sync and the trip reset, sent when a
+button is pressed or when an automatic option is on, and only to a model confirmed on a bike.
+"""
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 import logging
@@ -23,7 +28,7 @@ from .const import (
     KING_METER_TIMEOUT_SECONDS,
 )
 from .const import ISSUES_URL, KING_METER_NAME_PREFIXES, TRIP_RESET_DAILY, TRIP_RESET_OFF, TRIP_RESET_RIDE
-from .models import model_profile
+from .models import model_profile, writes_confirmed
 from .totals import TenwaysTotals
 
 _LOGGER = logging.getLogger(__name__)
@@ -68,6 +73,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         self, hass: HomeAssistant, address: str, poll_seconds: int,
         totals: TenwaysTotals | None = None, name: str | None = None,
         trip_reset: str = TRIP_RESET_OFF, auto_clock: bool = False,
+        advertised_name: str | None = None, on_name_seen: Callable[[str], None] | None = None,
     ) -> None:
         super().__init__(
             hass, _LOGGER, name=f"TENWAYS {address}",
@@ -76,6 +82,9 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
         self.address = address
         # Advertised name; picks the model's profile (the app's driver). Updated from advertisements.
         self.model_name = name
+        # The name the bike really advertised (not a placeholder): the only basis for writes.
+        self.advertised_name = advertised_name
+        self._on_name_seen = on_name_seen
         self.trip_reset = trip_reset
         # True until the first read after the bike (re)appeared: a switch-on or a return home.
         self._new_session = True
@@ -100,6 +109,30 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
     def profile(self):
         return model_profile(self.model_name)
 
+    @property
+    def writes_allowed(self) -> bool:
+        """Whether writes (clock, trip reset; button or automatic) are allowed for this bike."""
+        return writes_confirmed(self.advertised_name)
+
+    def _note_name(self, name: str | None) -> None:
+        """Remember the name the bike advertises; it decides whether writes are allowed."""
+        # A bike that advertises without its name may show up as its address: not a name.
+        if not name or name == self.advertised_name or name.upper().replace("-", ":") == self.address.upper():
+            return
+        before = self.writes_allowed
+        self.advertised_name = name
+        if self._on_name_seen is not None:
+            self._on_name_seen(name)
+        if self.writes_allowed != before:
+            self.async_update_listeners()  # the write entities become (un)available
+
+    def _require_writes(self) -> None:
+        if not self.writes_allowed:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="writes_not_confirmed",
+                translation_placeholders={"name": self.advertised_name or "?"},
+            )
+
     def _bike(self, client: BleakClient) -> TenwaysBike:
         profile = self.profile
         if self._profile_logged != profile.name:
@@ -118,6 +151,8 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
 
     async def _async_update_data(self) -> TenwaysData:
         info = bluetooth.async_last_service_info(self.hass, self.address, connectable=True)
+        if info is not None:
+            self._note_name(info.name)
         # The advertised name decides the model, also an unsupported one (so its warning is logged).
         if info is not None and info.name and info.name != self.model_name and (
             info.name.startswith(KING_METER_NAME_PREFIXES) or not model_profile(info.name).supported
@@ -229,9 +264,10 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
 
     @callback
     def async_handle_advertisement(
-        self, _info: bluetooth.BluetoothServiceInfoBleak, _change: bluetooth.BluetoothChange
+        self, info: bluetooth.BluetoothServiceInfoBleak, _change: bluetooth.BluetoothChange
     ) -> None:
         """Poll right away when the bike reappears; expire live values when it goes quiet."""
+        self._note_name(getattr(info, "name", None))
         self._last_advertisement = datetime.now(timezone.utc)
         if self._expiry is not None:
             self._expiry()
@@ -242,6 +278,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
 
     async def async_set_clock(self, moment: datetime) -> None:
         """Set the bike's clock to ``moment`` (local wall-clock fields). Needs the bike in range."""
+        self._require_writes()
         await self._async_write(lambda bike: bike.set_clock(moment), "clock_failed")
         _LOGGER.info("Set the clock of %s to %s", self.address, moment)
         if self.totals is not None:
@@ -250,6 +287,8 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
     async def _async_automatic_writes(self, bike: TenwaysBike, publish_read=None) -> None:
         """The options' clock sync and trip reset; a failure is retried on a later read."""
         totals = self.totals
+        if not self.writes_allowed:
+            return  # a model not confirmed on a bike is only read; the options are ignored
         if totals is None or not (self.auto_clock or self.trip_reset != TRIP_RESET_OFF) or not self.entities_ready:
             return  # the session stays new, so the next read (with entities) still clears the trip
         new_session, self._new_session = self._new_session, False
@@ -315,6 +354,7 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
 
     async def async_reset_trip(self) -> None:
         """Read the trip into HA, then clear it (distance, time, max and average speed), in one connection."""
+        self._require_writes()
 
         async def read_then_clear(bike: TenwaysBike) -> None:
             live = self._account(await self._async_read_king_meter(bike))

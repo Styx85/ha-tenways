@@ -1,6 +1,9 @@
 """TENWAYS BLE constants."""
 DOMAIN = "tenways"
 CONF_ADDRESS = "address"
+# The name the bike advertised when it was last seen (never the placeholder "TENWAYS AB:CD").
+# Only this decides whether writes are allowed.
+CONF_ADVERTISED_NAME = "advertised_name"
 NAME_PREFIX = "Tenways-ble-"
 BATTERY_UUID = "00002a19-0000-1000-8000-00805f9b34fb"
 # Optional Bluetooth Device Information characteristics. May not be exposed.

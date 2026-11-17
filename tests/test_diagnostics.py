@@ -12,3 +12,10 @@ async def test_diagnostics_are_redacted(hass):
     assert result["entry"]["data"]["address"] == "**REDACTED**"
     assert result["last_update_success"] is True
     assert result["data"]["bluetooth_visible"] is False
+
+
+async def test_diagnostics_say_whether_writes_are_allowed(hass):
+    entry = await _setup_without_bike(hass)
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["model"]["writes_allowed"] is True
+    assert result["model"]["advertised_name"] == "Longtail Duo"
