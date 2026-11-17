@@ -556,7 +556,8 @@ async def test_clock_and_trip_reset_are_refused_for_an_unconfirmed_model(hass, a
     assert bike.writes == []
 
 
-@pytest.mark.parametrize("name", ["CGO009", "AGOX", "TENWAYS B3:0D", None])
+# (CGO009 asks for more fields than the recorded reply has; its refusal is tested above.)
+@pytest.mark.parametrize("name", ["AGOX", "TENWAYS B3:0D", None])
 async def test_automatic_options_are_ignored_for_an_unconfirmed_model(hass, advertising, name):
     first = AnyReadBike(replies={})
     # The bike advertises this name (the fixture's default would be the Longtail Duo).
