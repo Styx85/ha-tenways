@@ -527,8 +527,18 @@ async def test_reset_button_publishes_the_ride_first(hass, advertising):
 # --- Writes only to a model confirmed on a bike ---------------------------------------------
 
 def _writes(bike):
-    """What was written to the bike other than the two read requests."""
-    return [w for w in bike.writes if w not in (STATUS_REQUEST, INFO_REQUEST)]
+    """The write frames (type 0x63) sent to the bike; reads (0x62) are not counted."""
+    return [w for w in bike.writes if w[0] == 0x63]
+
+
+class AnyReadBike(FakeBike):
+    """Answers the read requests of every profile (they differ per model) with the recorded replies."""
+
+    async def write_gatt_char(self, uuid, data, response=None):
+        data = bytes(data)
+        if data[0] == 0x62 and len(data) > 3 and data[3] in (0x0B, 0x04):
+            self.replies[data] = STATUS_REPLY if data[3] == 0x0B else INFO_REPLY
+        await super().write_gatt_char(uuid, data, response)
 
 
 @pytest.mark.parametrize("name", ["CGO800", "CGO009", "CGO009_D", "AGOX", "TENWAYS B3:0D", "Tenways-ble-400A59", None])
@@ -546,17 +556,18 @@ async def test_clock_and_trip_reset_are_refused_for_an_unconfirmed_model(hass, a
     assert bike.writes == []
 
 
-@pytest.mark.parametrize("name", ["CGO800", "AGOX", "TENWAYS B3:0D", None])
+@pytest.mark.parametrize("name", ["CGO009", "AGOX", "TENWAYS B3:0D", None])
 async def test_automatic_options_are_ignored_for_an_unconfirmed_model(hass, advertising, name):
-    first = FakeBike(replies={STATUS_REQUEST: _status(5, 600), INFO_REQUEST: INFO_REPLY})
+    first = AnyReadBike(replies={})
     # The bike advertises this name (the fixture's default would be the Longtail Duo).
     info = SimpleNamespace(time=time.monotonic(), rssi=-60, name=name)
     with patch("custom_components.tenways.coordinator.bluetooth.async_last_service_info", return_value=info):
         totals, (data,) = await _refresh_with_options(
             hass, first, trip_reset="daily", auto_clock=True, advertised=name,
         )
-    assert data.traction_battery == 68  # still read
-    assert _writes(first) == []  # but neither the trip reset nor the clock
+    # The read worked, so the automatic writes would have run for a confirmed model.
+    assert data.traction_battery == 68
+    assert _writes(first) == []
 
 
 async def test_automatic_options_still_work_for_the_confirmed_model(hass, advertising):
