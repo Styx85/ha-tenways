@@ -412,6 +412,7 @@ async def test_daily_reset_follows_the_first_read_in_the_same_connection(hass, a
     assert first.writes == [INFO_REQUEST, STATUS_REQUEST, CLEAR_TRIP]
     assert second.writes == [STATUS_REQUEST]  # once a day
     assert (data.trip_distance, data.ride_seconds) == (0, 0)  # shown right away
+    assert isinstance(data.trip_distance, float) and isinstance(data.ride_seconds, int)  # no "0" -> "0.0" flip
     assert data.odometer == 120.1
     assert totals.total_ride_s == 34116  # the trip was counted before it was cleared
 

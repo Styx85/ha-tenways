@@ -339,9 +339,10 @@ class TenwaysCoordinator(DataUpdateCoordinator[TenwaysData]):
             _LOGGER.info("Cleared the trip of %s (%s)", self.address, self.trip_reset)
             totals.async_trip_reset_done(now)
             # The values were read just before; show the cleared trip without waiting for the next poll.
-            for key in ('trip_distance', 'ride_seconds', 'max_speed', 'average_speed'):
+            # Floats stay floats, so that HA does not record "0" -> "0.0" as a change at the next poll.
+            for key, zero in (('trip_distance', 0.0), ('ride_seconds', 0), ('max_speed', 0.0), ('average_speed', 0.0)):
                 if key in self._last:
-                    self._last[key] = 0
+                    self._last[key] = zero
 
     def _trip_reset_wanted(self, now: datetime, new_session: bool) -> bool:
         totals = self.totals

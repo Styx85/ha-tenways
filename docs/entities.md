@@ -8,7 +8,7 @@ Everything the integration exposes, where each value comes from, and how far it 
 - Odometer (km, field `0x0C`), trip distance (km, field `0x09`), maximum and average ride speed (km/h), accumulated ride time (shown in hours). Odometer and trip match the display; ride time and average speed agree with the distance.
   On the Longtail Duo these are lifetime counters: the trip values equal the odometer and keep counting until the trip is cleared, on the display or with the **Reset trip** button. Odometer, trip distance and ride time are `total_increasing`, so HA's statistics give distance and riding hours per day, week or month.
 - Current speed from field `0x06` (disabled by default; read 0 while parked, not yet confirmed while riding).
-- Firmware (`2.20.16` observed; the app shows `1.4.0` elsewhere, so this may be another component) and serial number, read once per HA start.
+- Firmware (`2.20.16` observed) and serial number, read once per HA start. The firmware is key `0x04`, which the TENWAYS app stores as `meterFWVer` (the display's firmware) and formats the same way: each byte as a decimal number, joined by dots.
 - Light on/off (binary sensor) from field `0x11` (0 = off); follows the headlight, also with automatic light.
 - Remaining range from field `0x0B` (`remainingRange` in the TENWAYS app). It depends on the assist level and falls in proportion to the battery, and is not available at level 0, where the app also shows none. Neither the display nor the app shows it as a number and the unit is not stated; km is probable.
 
