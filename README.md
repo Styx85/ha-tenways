@@ -4,6 +4,10 @@
 
 Unofficial integration for TENWAYS e-bikes over Bluetooth, built on the [`tenways-ble`](https://github.com/Styx85/tenways-ble) library. It reads the bike through Home Assistant's own Bluetooth stack: a local adapter or an ESPHome Bluetooth proxy with active connections. No cloud, no extra hardware. **Tested on a Longtail Duo** with Home Assistant 2026.11; other King Meter models may work (untested), see [Supported bikes](#supported-bikes).
 
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Styx85&repository=ha-tenways&category=integration)
+
+In the HACS default list; see [Installation](#installation).
+
 ## Features
 
 - **Battery and ride data:** traction battery, odometer, trip distance, ride time, maximum and average speed, light, remaining range.
@@ -54,7 +58,7 @@ A model joins the confirmed list after someone has confirmed the write on such a
 
 ## Installation
 
-TENWAYS BLE is in the HACS default list. One click:
+TENWAYS BLE is in the HACS default list. One click opens it in your HACS:
 
 [![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Styx85&repository=ha-tenways&category=integration)
 
